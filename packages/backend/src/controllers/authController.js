@@ -1,145 +1,150 @@
-const bcrypt = require('bcryptjs');
+const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
-const { validationResult } = require('express-validator');
-const db = require('../config/db');
-const googleAuth = require('../config/googleAuth');
 
-const generateToken = (user) => {
+// Initialize Supabase client with service role key
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY // full-access server-side key
+);
+
+// Generate JWT (optional, if you still want your own app token)
+const generateAppToken = (user) => {
   return jwt.sign(
-    { 
-      id: user.id, 
-      email: user.email, 
-      role: user.role 
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role
     },
     process.env.JWT_SECRET,
     { expiresIn: '24h' }
   );
 };
 
-const login = async (req, res) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email, password } = req.body;
-
-    const result = await db.query(
-      'SELECT * FROM employees WHERE email = $1',
-      [email]
-    );
-
-    const user = result.rows[0];
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const token = generateToken(user);
-    res.json({ token, user: { 
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    }});
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
-const googleLogin = async (req, res) => {
-  try {
-    const { token } = req.body;
-    const ticket = await googleAuth.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID
-    });
-
-    const { email, name, picture } = ticket.getPayload();
-
-    // Check if user exists
-    let result = await db.query(
-      'SELECT * FROM employees WHERE email = $1',
-      [email]
-    );
-
-    let user = result.rows[0];
-
-    // If user doesn't exist, create new user
-    if (!user) {
-      result = await db.query(
-        'INSERT INTO employees (name, email, role, avatar) VALUES ($1, $2, $3, $4) RETURNING *',
-        [name, email, 'employee', picture]
-      );
-      user = result.rows[0];
-    }
-
-    const jwtToken = generateToken(user);
-    res.json({ token: jwtToken, user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      avatar: user.avatar
-    }});
-  } catch (error) {
-    console.error('Google login error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-};
-
+// 🧩 Register (Sign Up)
 const register = async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
+    const { email, password, name, role } = req.body;
 
-    const { name, email, password, role } = req.body;
+    // 1️⃣ Create user in Supabase Auth
+    const { data, error: signupError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { name, role }
+    });
 
-    // Check if user already exists
-    const userExists = await db.query(
-      'SELECT * FROM employees WHERE email = $1',
-      [email]
-    );
+    if (signupError) throw signupError;
 
-    if (userExists.rows.length > 0) {
-      return res.status(400).json({ error: 'User already exists' });
-    }
+    // 2️⃣ Update role in auth.users table
+    await supabase
+      .from('users')
+      .update({ role: role || 'employee' })
+      .eq('id', data.user.id);
 
-    // Hash password
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const appToken = generateAppToken({
+      id: data.user.id,
+      email,
+      role
+    });
 
-    // Create user
-    const result = await db.query(
-      'INSERT INTO employees (name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, email, hashedPassword, role]
-    );
-
-    const user = result.rows[0];
-    const token = generateToken(user);
-
-    res.status(201).json({ token, user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role
-    }});
+    res.status(201).json({
+      message: 'User registered successfully',
+      token: appToken,
+      user: {
+        id: data.user.id,
+        email,
+        name,
+        role
+      }
+    });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Supabase Register Error:', error);
+    res.status(500).json({ error: error.message || 'Server error' });
   }
 };
 
-module.exports = {
-  login,
-  googleLogin,
-  register
+// 🔐 Login (Email + Password)
+const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (error) return res.status(401).json({ error: error.message });
+
+    const user = data.user;
+
+    // Fetch role from auth.users (or metadata)
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    const appToken = generateAppToken({
+      id: user.id,
+      email: user.email,
+      role: userData?.role || user.user_metadata?.role || 'employee'
+    });
+
+    res.json({
+      message: 'Login successful',
+      token: appToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: userData?.role || user.user_metadata?.role || 'employee'
+      }
+    });
+  } catch (error) {
+    console.error('Supabase Login Error:', error);
+    res.status(500).json({ error: error.message || 'Server error' });
+  }
 };
+
+// 🧠 Google Login
+const googleLogin = async (req, res) => {
+  try {
+    const { provider_token } = req.body;
+
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: 'google',
+      token: provider_token
+    });
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    const user = data.user;
+
+    // Fetch role
+    const { data: userData } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    const appToken = generateAppToken({
+      id: user.id,
+      email: user.email,
+      role: userData?.role || user.user_metadata?.role || 'employee'
+    });
+
+    res.json({
+      message: 'Google login successful',
+      token: appToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        role: userData?.role || user.user_metadata?.role || 'employee'
+      }
+    });
+  } catch (error) {
+    console.error('Google Login Error:', error);
+    res.status(500).json({ error: error.message || 'Server error' });
+  }
+};
+
+module.exports = { register, login, googleLogin };
