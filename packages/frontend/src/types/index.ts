@@ -25,9 +25,10 @@ export interface Permission {
 }
 
 export interface LoginCredentials {
-  email: string
-  password: string
+  email?: string
+  password?: string
   role?: UserRole
+  provider?: 'google' | 'apple'
 }
 
 // Employee Types

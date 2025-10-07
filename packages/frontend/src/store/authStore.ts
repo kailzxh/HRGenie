@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { User as SupabaseUser, Session } from '@supabase/supabase-js'
+import { supabase } from '@/config/supabase'
 import { User, LoginCredentials, UserRole } from '@/types'
 
 interface AuthState {
@@ -12,7 +14,8 @@ interface AuthState {
 
 interface AuthActions {
   login: (credentials: LoginCredentials) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
+  setUser: (user: User) => void
   updateUser: (userData: Partial<User>) => void
   clearError: () => void
   setLoading: (loading: boolean) => void
@@ -20,83 +23,6 @@ interface AuthActions {
 }
 
 type AuthStore = AuthState & AuthActions
-
-// Mock user data for demonstration
-const mockUsers: Record<string, User> = {
-  'admin@nexushr.com': {
-    id: '1',
-    name: 'John Admin',
-    email: 'admin@nexushr.com',
-    role: 'admin',
-    avatar: 'https://ui-avatars.com/api/?name=John+Admin&background=14b8a6&color=fff',
-    department: 'Administration',
-    position: 'System Administrator',
-    employeeId: 'EMP001',
-    joinDate: '2020-01-15',
-    permissions: [
-      { module: 'all', actions: ['create', 'read', 'update', 'delete'] }
-    ]
-  },
-  'hr@nexushr.com': {
-    id: '2',
-    name: 'Sarah Wilson',
-    email: 'hr@nexushr.com',
-    role: 'hr',
-    avatar: 'https://ui-avatars.com/api/?name=Sarah+Wilson&background=ec4899&color=fff',
-    department: 'Human Resources',
-    position: 'HR Manager',
-    employeeId: 'EMP002',
-    joinDate: '2021-03-10',
-    permissions: [
-      { module: 'recruitment', actions: ['create', 'read', 'update', 'delete'] },
-      { module: 'employees', actions: ['create', 'read', 'update'] },
-      { module: 'leaves', actions: ['read', 'update'] },
-      { module: 'payroll', actions: ['read'] },
-    ]
-  },
-  'manager@nexushr.com': {
-    id: '3',
-    name: 'Mike Johnson',
-    email: 'manager@nexushr.com',
-    role: 'manager',
-    avatar: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=3b82f6&color=fff',
-    department: 'Engineering',
-    position: 'Engineering Manager',
-    employeeId: 'EMP003',
-    joinDate: '2019-08-20',
-    directReports: ['4', '5', '6'],
-    permissions: [
-      { module: 'team', actions: ['read', 'update'] },
-      { module: 'leaves', actions: ['read', 'update'] },
-      { module: 'performance', actions: ['create', 'read', 'update'] },
-      { module: 'attendance', actions: ['read'] },
-    ]
-  },
-  'employee@nexushr.com': {
-    id: '4',
-    name: 'Emily Chen',
-    email: 'employee@nexushr.com',
-    role: 'employee',
-    avatar: 'https://ui-avatars.com/api/?name=Emily+Chen&background=10b981&color=fff',
-    department: 'Engineering',
-    position: 'Software Developer',
-    employeeId: 'EMP004',
-    joinDate: '2022-02-14',
-    manager: '3',
-    permissions: [
-      { module: 'profile', actions: ['read', 'update'] },
-      { module: 'leaves', actions: ['create', 'read'] },
-      { module: 'attendance', actions: ['read', 'update'] },
-      { module: 'payroll', actions: ['read'] },
-    ]
-  }
-}
-
-// Support alternate demo domain used in the UI (hrGenie.com)
-mockUsers['admin@hrgenie.com'] = { ...mockUsers['admin@nexushr.com'], email: 'admin@hrgenie.com' }
-mockUsers['hr@hrgenie.com'] = { ...mockUsers['hr@nexushr.com'], email: 'hr@hrgenie.com' }
-mockUsers['manager@hrgenie.com'] = { ...mockUsers['manager@nexushr.com'], email: 'manager@hrgenie.com' }
-mockUsers['employee@hrgenie.com'] = { ...mockUsers['employee@nexushr.com'], email: 'employee@hrgenie.com' }
 
 const getRolePermissions = (role: UserRole): string[] => {
   const permissions: Record<UserRole, string[]> = {
@@ -109,7 +35,8 @@ const getRolePermissions = (role: UserRole): string[] => {
       'attendance.create', 'attendance.read', 'attendance.update', 'attendance.delete',
       'performance.create', 'performance.read', 'performance.update', 'performance.delete',
       'reports.read', 'reports.export',
-      'settings.read', 'settings.update'
+      'settings.read', 'settings.update',
+      'users.create.admin'
     ],
     hr: [
       'employees.create', 'employees.read', 'employees.update',
@@ -136,7 +63,7 @@ const getRolePermissions = (role: UserRole): string[] => {
       'performance.read'
     ]
   }
-  
+
   return permissions[role] || []
 }
 
@@ -151,53 +78,81 @@ export const useAuthStore = create<AuthStore>()(
 
       login: async (credentials: LoginCredentials) => {
         set({ loading: true, error: null })
-        
+
         try {
-          // Simulate API call delay
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          
-          // Check credentials
-          const user = mockUsers[credentials.email.toLowerCase()]
-          
-          if (!user) {
-            throw new Error('Invalid email or password')
+          let user: SupabaseUser | null = null
+
+          if (credentials.provider === 'google') {
+            const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' })
+            if (error) throw error
+            user = data.user
+          } else if (credentials.email && credentials.password) {
+            const { data, error } = await supabase.auth.signInWithPassword({
+              email: credentials.email,
+              password: credentials.password
+            })
+            if (error) throw error
+            user = data.user
+          } else {
+            throw new Error('Invalid login credentials')
           }
-          
-          // In a real app, you'd verify the password here
-          // For demo purposes, any password works
-          
-          const permissions = getRolePermissions(user.role)
-          
-          set({ 
-            user, 
-            isAuthenticated: true, 
-            loading: false, 
-            error: null,
-            permissions
-          })
+
+          if (!user) throw new Error('User not found')
+
+          // Fetch user profile from your database
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single()
+
+          if (profileError) throw profileError
+
+          const userData: User = {
+            id: user.id,
+            email: user.email ?? '',
+            name: profile?.name ?? user.email?.split('@')[0] ?? 'User',
+            role: (profile?.role as UserRole) || 'employee'
+          }
+
+          const permissions = getRolePermissions(userData.role)
+
+          set({ user: userData, isAuthenticated: true, permissions, loading: false })
         } catch (error) {
-          set({ 
-            error: error instanceof Error ? error.message : 'Login failed', 
-            loading: false 
+          set({
+            error: error instanceof Error ? error.message : 'Login failed',
+            loading: false
           })
           throw error
         }
       },
 
-      logout: () => {
-        set({ 
-          user: null, 
-          isAuthenticated: false, 
-          error: null,
-          permissions: []
-        })
+      logout: async () => {
+        try {
+          const { error } = await supabase.auth.signOut()
+          if (error) throw error
+          set({
+            user: null,
+            isAuthenticated: false,
+            permissions: [],
+            error: null
+          })
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : 'Logout failed'
+          })
+          throw error
+        }
+      },
+
+      setUser: (user: User) => {
+        const permissions = getRolePermissions(user.role)
+        set({ user, isAuthenticated: true, permissions, error: null })
       },
 
       updateUser: (userData: Partial<User>) => {
         const { user } = get()
-        if (user) {
-          set({ user: { ...user, ...userData } })
-        }
+        if (user) set({ user: { ...user, ...userData } })
       },
 
       clearError: () => {
@@ -209,17 +164,16 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       checkPermission: (permission: string) => {
-        const { permissions } = get()
-        return permissions.includes(permission)
-      },
+        return get().permissions.includes(permission)
+      }
     }),
     {
       name: 'nexushr-auth',
       partialize: (state) => ({
         user: state.user,
         isAuthenticated: state.isAuthenticated,
-        permissions: state.permissions,
-      }),
+        permissions: state.permissions
+      })
     }
   )
 )
