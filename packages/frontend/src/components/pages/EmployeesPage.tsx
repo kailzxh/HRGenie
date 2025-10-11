@@ -531,7 +531,7 @@ export default function EmployeesPage() {
   </DialogContent>
 </Dialog>
 
-
+          
       {/* View Employee Dialog */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
         <DialogContent>

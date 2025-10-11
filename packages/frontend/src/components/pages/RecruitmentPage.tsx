@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { 
   Plus, 
@@ -16,45 +16,18 @@ import {
   MapPin,
   Clock
 } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 
 export default function RecruitmentPage() {
   const [activeTab, setActiveTab] = useState<'openings' | 'pipeline' | 'interviews'>('openings')
-
-  const jobOpenings = [
-    {
-      id: '1',
-      title: 'Senior Frontend Developer',
-      department: 'Engineering',
-      location: 'Remote',
-      type: 'Full-time',
-      status: 'Active',
-      applicants: 45,
-      postedDate: '2024-10-15',
-      salary: '$90,000 - $120,000'
-    },
-    {
-      id: '2',
-      title: 'HR Coordinator',
-      department: 'Human Resources',
-      location: 'New York',
-      type: 'Full-time',
-      status: 'Active',
-      applicants: 23,
-      postedDate: '2024-10-12',
-      salary: '$55,000 - $70,000'
-    },
-    {
-      id: '3',
-      title: 'Data Scientist',
-      department: 'Engineering',
-      location: 'San Francisco',
-      type: 'Full-time',
-      status: 'Active',
-      applicants: 67,
-      postedDate: '2024-10-10',
-      salary: '$100,000 - $140,000'
-    }
-  ]
+  const [jobOpenings, setJobOpenings] = useState<any[]>([])
+  const [showForm, setShowForm] = useState(false)
+  const [formData, setFormData] = useState<any>({})
+  const [showViewDialog, setShowViewDialog] = useState(false)
+  const [viewJob, setViewJob] = useState<any>(null)
 
   const candidates = [
     {
@@ -112,6 +85,35 @@ export default function RecruitmentPage() {
     }
   ]
 
+  // Fetch job openings from backend API
+ // Fetch job openings from backend API
+useEffect(() => {
+  fetch('/api/recruitment/jobs')
+    .then(res => res.json())
+    .then(data => {
+      if (!Array.isArray(data)) {
+        console.error('Expected array but got:', data);
+        return;
+      }
+      setJobOpenings(
+        data.map(job => ({
+          id: job.id,
+          title: job.title,
+          department: job.department,
+          location: job.location,
+          type: job.employment_type,
+          status: job.is_active ? 'Active' : 'Inactive',
+          applicants: Math.floor(Math.random() * 100),
+          postedDate: new Date(job.created_at).toISOString(),
+          salary: job.salary_range
+        }))
+      );
+    })
+    .catch(err => console.error('Fetch jobs error:', err));
+}, []);
+
+
+
   const getStageColor = (stage: string) => {
     const colors = {
       'Applied': 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
@@ -133,6 +135,30 @@ export default function RecruitmentPage() {
     return colors[status as keyof typeof colors] || colors.Active
   }
 
+  const handleSaveJob = async () => {
+    const res = await fetch('/api/recruitment/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData)
+    })
+    if (res.ok) {
+      const newJob = await res.json()
+      setJobOpenings([...jobOpenings, {
+        id: newJob.id,
+        title: newJob.title,
+        department: newJob.department,
+        location: newJob.location,
+        type: newJob.employment_type,
+        status: newJob.is_active ? 'Active' : 'Inactive',
+        applicants: 0,
+        postedDate: new Date(newJob.created_at).toISOString(),
+        salary: newJob.salary_range
+      }])
+      setShowForm(false)
+      setFormData({})
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -152,7 +178,10 @@ export default function RecruitmentPage() {
             <span>Filter</span>
           </button>
           
-          <button className="flex items-center space-x-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors">
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center space-x-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg transition-colors"
+          >
             <Plus className="w-4 h-4" />
             <span>Create Job Opening</span>
           </button>
@@ -161,6 +190,7 @@ export default function RecruitmentPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Open Positions */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -181,6 +211,7 @@ export default function RecruitmentPage() {
           </div>
         </motion.div>
 
+        {/* Total Applicants */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -202,6 +233,7 @@ export default function RecruitmentPage() {
           </div>
         </motion.div>
 
+        {/* Interviews */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -223,6 +255,7 @@ export default function RecruitmentPage() {
           </div>
         </motion.div>
 
+        {/* AI Processing */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -271,6 +304,7 @@ export default function RecruitmentPage() {
 
       {/* Tab Content */}
       <div className="space-y-6">
+        {/* Job Openings */}
         {activeTab === 'openings' && (
           <div className="grid grid-cols-1 gap-6">
             {jobOpenings.map((job, index) => (
@@ -316,7 +350,10 @@ export default function RecruitmentPage() {
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    <button
+                      onClick={() => { setViewJob(job); setShowViewDialog(true) }}
+                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    >
                       <Eye className="w-4 h-4" />
                     </button>
                     <button className="px-4 py-2 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 rounded-lg transition-colors">
@@ -329,6 +366,7 @@ export default function RecruitmentPage() {
           </div>
         )}
 
+        {/* Candidate Pipeline & Interviews tabs unchanged */}
         {activeTab === 'pipeline' && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {['Applied', 'Screening', 'Interview', 'Hired'].map((stage) => (
@@ -420,6 +458,67 @@ export default function RecruitmentPage() {
           </div>
         )}
       </div>
+
+      {/* Create Job Form */}
+      <Dialog open={showForm} onOpenChange={setShowForm}>
+        <DialogContent className="max-w-3xl w-full sm:w-[90%] md:w-[80%] lg:w-[60%] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create Job Opening</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4 sm:grid-cols-1 md:grid-cols-2">
+            <div className="w-full">
+              <Label>Title</Label>
+              <Input value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})}/>
+            </div>
+            <div className="w-full">
+              <Label>Department</Label>
+              <Input value={formData.department || ''} onChange={e => setFormData({...formData, department: e.target.value})}/>
+            </div>
+            <div className="w-full">
+              <Label>Location</Label>
+              <Input value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})}/>
+            </div>
+            <div className="w-full">
+              <Label>Employment Type</Label>
+              <Input value={formData.employment_type || ''} onChange={e => setFormData({...formData, employment_type: e.target.value})}/>
+            </div>
+            <div className="w-full">
+              <Label>Salary Range</Label>
+              <Input value={formData.salary_range || ''} onChange={e => setFormData({...formData, salary_range: e.target.value})}/>
+            </div>
+            <div className="w-full md:col-span-2">
+              <Label>Description</Label>
+              <Input value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})}/>
+            </div>
+          </div>
+          <DialogFooter className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+            <Button onClick={handleSaveJob}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Job Dialog */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Job Details</DialogTitle>
+          </DialogHeader>
+          {viewJob && (
+            <div className="grid gap-3 py-4">
+              <p><strong>Title:</strong> {viewJob.title}</p>
+              <p><strong>Department:</strong> {viewJob.department}</p>
+              <p><strong>Location:</strong> {viewJob.location}</p>
+              <p><strong>Employment Type:</strong> {viewJob.type}</p>
+              <p><strong>Salary Range:</strong> {viewJob.salary}</p>
+              <p><strong>Status:</strong> {viewJob.status}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setShowViewDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
