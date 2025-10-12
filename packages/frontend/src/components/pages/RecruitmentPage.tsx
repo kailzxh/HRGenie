@@ -134,31 +134,80 @@ useEffect(() => {
     }
     return colors[status as keyof typeof colors] || colors.Active
   }
+ const [requirementsText, setRequirementsText] = useState('{}');
 
   const handleSaveJob = async () => {
-    const res = await fetch('/api/recruitment/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(formData)
-    })
-    if (res.ok) {
-      const newJob = await res.json()
-      setJobOpenings([...jobOpenings, {
-        id: newJob.id,
-        title: newJob.title,
-        department: newJob.department,
-        location: newJob.location,
-        type: newJob.employment_type,
-        status: newJob.is_active ? 'Active' : 'Inactive',
-        applicants: 0,
-        postedDate: new Date(newJob.created_at).toISOString(),
-        salary: newJob.salary_range
-      }])
-      setShowForm(false)
-      setFormData({})
+    // Basic validation for required fields
+    const { title, department, location, employment_type } = formData;
+    if (!title || !department || !location || !employment_type) {
+      alert("Please fill in all required fields: Title, Department, Location, Employment Type");
+      return;
     }
-  }
 
+    // Parse requirements JSON
+    let parsedRequirements = {};
+    try {
+      parsedRequirements = JSON.parse(requirementsText);
+    } catch (err) {
+      alert("Requirements must be valid JSON");
+      return;
+    }
+
+    // Prepare payload
+    const payload = {
+      ...formData,
+      requirements: parsedRequirements,
+      is_active: true, // default value
+    };
+
+    try {
+      const res = await fetch("/api/recruitment/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        console.error("Error creating job:", result);
+        alert(`Failed to create job: ${result.error || "Unknown error"}`);
+        return;
+      }
+
+      // Add new job to state
+      setJobOpenings([
+        ...jobOpenings,
+        {
+          id: result.id,
+          title: result.title,
+          department: result.department,
+          location: result.location,
+          type: result.employment_type,
+          status: result.is_active ? "Active" : "Inactive",
+          applicants: 0,
+          postedDate: new Date(result.created_at).toISOString(),
+          salary: result.salary_range || "",
+        },
+      ]);
+
+      // Reset form
+      setShowForm(false);
+      setFormData({
+        title: "",
+        department: "",
+        location: "",
+        employment_type: "Full-time",
+        salary_range: "",
+        description: "",
+      });
+      setRequirementsText('{}');
+
+    } catch (error) {
+      console.error("Network or server error:", error);
+      alert("Something went wrong while saving the job.");
+    }
+  };
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -460,43 +509,89 @@ useEffect(() => {
       </div>
 
       {/* Create Job Form */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-3xl w-full sm:w-[90%] md:w-[80%] lg:w-[60%] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Create Job Opening</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4 sm:grid-cols-1 md:grid-cols-2">
-            <div className="w-full">
-              <Label>Title</Label>
-              <Input value={formData.title || ''} onChange={e => setFormData({...formData, title: e.target.value})}/>
-            </div>
-            <div className="w-full">
-              <Label>Department</Label>
-              <Input value={formData.department || ''} onChange={e => setFormData({...formData, department: e.target.value})}/>
-            </div>
-            <div className="w-full">
-              <Label>Location</Label>
-              <Input value={formData.location || ''} onChange={e => setFormData({...formData, location: e.target.value})}/>
-            </div>
-            <div className="w-full">
-              <Label>Employment Type</Label>
-              <Input value={formData.employment_type || ''} onChange={e => setFormData({...formData, employment_type: e.target.value})}/>
-            </div>
-            <div className="w-full">
-              <Label>Salary Range</Label>
-              <Input value={formData.salary_range || ''} onChange={e => setFormData({...formData, salary_range: e.target.value})}/>
-            </div>
-            <div className="w-full md:col-span-2">
-              <Label>Description</Label>
-              <Input value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})}/>
-            </div>
+    <Dialog open={showForm} onOpenChange={setShowForm}>
+      <DialogContent className="max-w-3xl w-full sm:w-[90%] md:w-[80%] lg:w-[60%] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Create Job Opening</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-4 py-4 sm:grid-cols-1 md:grid-cols-2">
+          {/* Required Fields */}
+          <div className="w-full">
+            <Label>Title *</Label>
+            <Input
+              value={formData.title}
+              onChange={e => setFormData({ ...formData, title: e.target.value })}
+              placeholder="Enter job title"
+            />
           </div>
-          <DialogFooter className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            <Button onClick={handleSaveJob}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <div className="w-full">
+            <Label>Department *</Label>
+            <Input
+              value={formData.department}
+              onChange={e => setFormData({ ...formData, department: e.target.value })}
+              placeholder="Enter department"
+            />
+          </div>
+          <div className="w-full">
+            <Label>Location *</Label>
+            <Input
+              value={formData.location}
+              onChange={e => setFormData({ ...formData, location: e.target.value })}
+              placeholder="Enter location"
+            />
+          </div>
+          <div className="w-full">
+            <Label>Employment Type *</Label>
+            <select
+              value={formData.employment_type}
+              onChange={e => setFormData({ ...formData, employment_type: e.target.value })}
+              className="w-full border rounded px-2 py-1"
+            >
+              <option value="Full-time">Full-time</option>
+              <option value="Part-time">Part-time</option>
+              <option value="Contract">Contract</option>
+              <option value="Internship">Internship</option>
+            </select>
+          </div>
+
+          {/* Optional Fields */}
+          <div className="w-full">
+            <Label>Salary Range</Label>
+            <Input
+              value={formData.salary_range}
+              onChange={e => setFormData({ ...formData, salary_range: e.target.value })}
+              placeholder="e.g., 50k-70k"
+            />
+          </div>
+          <div className="w-full md:col-span-2">
+            <Label>Description</Label>
+            <textarea
+              value={formData.description}
+              onChange={e => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Enter job description"
+              className="w-full border rounded px-2 py-1 h-24"
+            />
+          </div>
+
+          {/* Requirements JSON */}
+          <div className="w-full md:col-span-2">
+            <Label>Requirements (JSON format)</Label>
+            <textarea
+              value={requirementsText}
+              onChange={e => setRequirementsText(e.target.value)}
+              placeholder='e.g., {"skills":["JS","React"]}'
+              className="w-full border rounded px-2 py-1 h-24 font-mono text-sm"
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
+          <Button onClick={handleSaveJob}>Save</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
       {/* View Job Dialog */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
