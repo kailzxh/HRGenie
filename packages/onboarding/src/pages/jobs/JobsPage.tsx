@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, Briefcase, DollarSign } from 'lucide-react';
 import { supabase } from '../../lib/supabase/client';
 import { useAuth } from '../../contexts/AuthContext';
+import { Navbar } from '@/components/Navbar';
 
 // ---- Types ----
 export interface Job {
@@ -138,11 +139,12 @@ export const JobsPage: React.FC<JobsPageProps> = ({ initialJobs = [] }) => {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
-      <div className="mb-8">
+      <Navbar />
+      {/* <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Open Positions</h1>
         <p className="text-gray-600">Find your next opportunity with AI-powered hiring</p>
-      </div>
-
+      </div> */}
+  <div className="mb-8"></div>
       {/* Filters */}
       <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="relative md:col-span-2">

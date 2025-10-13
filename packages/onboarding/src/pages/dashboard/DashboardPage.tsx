@@ -12,17 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Briefcase,
-  Calendar,
-  FileText,
-  Github,
-  Linkedin,
-  Mail,
-  Phone,
-  ExternalLink,
-  MessageSquare,
-} from 'lucide-react';
+import { Briefcase, Calendar, ExternalLink, FileText, Github, Linkedin, Mail, MessageSquare, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const statusColors: Record<string, string> = {
@@ -93,12 +83,15 @@ export default function DashboardPage(): JSX.Element {
 
       if (error) {
         console.error('Error fetching applications:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to fetch your applications.',
+          variant: 'destructive',
+        });
         return;
       }
 
-      if (data) {
-        setApplications(data as Application[]);
-      }
+      if (data) setApplications(data as Application[]);
     } catch (err) {
       console.error('Unexpected error fetching applications:', err);
     } finally {
@@ -107,34 +100,39 @@ export default function DashboardPage(): JSX.Element {
   };
 
   const handleProfileUpdate = async (): Promise<void> => {
-    const { error } = await supabase.from('profiles').update(profileData).eq('id', user!.id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(profileData)
+        .eq('id', user!.id);
 
-    if (error) {
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Profile updated successfully',
+      });
+
+      setEditMode(false);
+      refreshProfile();
+    } catch (error: any) {
+      console.error('Profile update error:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to update profile',
         variant: 'destructive',
       });
-      return;
     }
-
-    toast({
-      title: 'Success',
-      description: 'Profile updated successfully',
-    });
-
-    setEditMode(false);
-    refreshProfile();
   };
 
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-slate-50">
         <Navbar />
-        <div className="flex items-center justify-center h-screen">
+        <div className="flex items-center justify-center h-screen text-slate-600">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto"></div>
-            <p className="mt-4 text-slate-600">Loading...</p>
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-900 mx-auto"></div>
+            <p className="mt-3">Loading dashboard...</p>
           </div>
         </div>
       </div>

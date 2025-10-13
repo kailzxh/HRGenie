@@ -26,7 +26,7 @@ export default function HRInterviewPage() {
   >([]);
   const [inputMessage, setInputMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const messagesEndRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -41,7 +41,7 @@ export default function HRInterviewPage() {
   }, [user, id]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); // Ensure this is a div element
   }, [messages]);
 
   const fetchApplication = async () => {
@@ -49,7 +49,7 @@ export default function HRInterviewPage() {
       .from('applications')
       .select('*, job:jobs(*)')
       .eq('id', id)
-      .eq('profile_id', user.id)
+      .eq('profile_id', user!.id)
       .maybeSingle();
 
     if (appData && !appError) {
@@ -82,7 +82,7 @@ Let's start with an icebreaker: Can you tell me a bit about yourself and what at
     setLoading(false);
   };
 
-  const saveTranscript = async (updatedMessages) => {
+  const saveTranscript = async (updatedMessages: { role: 'user' | 'assistant'; content: string; timestamp: string; }[]) => {
     await supabase
       .from('applications')
       .update({ hr_interview_transcript: updatedMessages })
@@ -132,7 +132,7 @@ Let's start with an icebreaker: Can you tell me a bit about yourself and what at
     }, 1500);
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();

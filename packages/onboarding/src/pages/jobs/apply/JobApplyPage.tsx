@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle2, Upload } from 'lucide-react';
@@ -55,7 +56,7 @@ export default function ApplyPage() {
     previous_roles: [{ title: '', company: '', duration: '', description: '' }],
   });
 
-  // --- Fetch Job Function ---
+  // --- Fetch Job ---
   const fetchJob = useCallback(async () => {
     if (authLoading) return;
     if (!user) {
@@ -70,12 +71,7 @@ export default function ApplyPage() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
+      const { data, error } = await supabase.from('jobs').select('*').eq('id', id).maybeSingle();
       if (error) throw error;
 
       if (!data) {
@@ -92,47 +88,11 @@ export default function ApplyPage() {
     }
   }, [authLoading, user, id, navigate, toast]);
 
-  // --- Fetch job on mount ---
   useEffect(() => {
     fetchJob();
   }, [fetchJob]);
 
-  // --- Refetch on window focus ---
-  useEffect(() => {
-    const handleFocus = async () => {
-      if (!user || !id) return;
-      setLoading(true);
-
-      try {
-        const { data, error } = await supabase
-          .from('jobs')
-          .select('*')
-          .eq('id', id)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Job fetch on focus error:', error);
-          return;
-        }
-
-        if (!data) {
-          toast({ title: 'Error', description: 'Job not found', variant: 'destructive' });
-          navigate('/jobs');
-        } else {
-          setJob(data);
-        }
-      } catch (err) {
-        console.error('Unexpected error fetching job on focus:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [user, id, navigate, toast]);
-
-  // --- Reset form only if job ID changes ---
+  // --- Reset form on job change ---
   useEffect(() => {
     setFormData({
       linkedin_url: '',
@@ -149,10 +109,8 @@ export default function ApplyPage() {
     setCurrentStep(1);
   }, [id]);
 
-  // --- Progress Bar ---
   const progress = useMemo(() => (currentStep / 3) * 100, [currentStep]);
 
-  // --- Form Helpers ---
   const updateFormData = (field: keyof ApplicationData, value: any) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
 
@@ -207,51 +165,75 @@ export default function ApplyPage() {
   };
 
   // --- Submit Application ---
-  const handleSubmit = async () => {
-    if (!resumeFile) return setError('Please upload your resume');
+const handleSubmit = async () => {
+  if (!resumeFile) return setError('Please upload your resume');
+  if (!id || !user) return setError('Invalid session or job ID.');
 
-    setSubmitting(true);
-    setError('');
+  setSubmitting(true);
+  setError('');
 
-    try {
-      const fileExt = resumeFile.name.split('.').pop();
-      const fileName = `${user!.id}/${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('resumes').upload(fileName, resumeFile, { upsert: true });
-      if (uploadError) throw uploadError;
+  try {
+    // --- Check if the user already applied ---
+    const { data: existingApp, error: checkError } = await supabase
+      .from('applications')
+      .select('id')
+      .eq('profile_id', user.id)
+      .eq('job_id', id)
+      .maybeSingle();
 
-      const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(fileName);
-      const resumeUrl = urlData?.publicUrl;
-      if (!resumeUrl) throw new Error('Could not retrieve resume URL.');
+    if (checkError) throw checkError;
 
-      const { error: appError } = await supabase.from('applications').insert({
-        job_id: id,
-        resume_url: resumeUrl,
-        status: 'submitted',
-        education: {
-          college: formData.college,
-          gpa: parseFloat(formData.gpa),
-          degree: formData.degree,
-          graduation_year: parseInt(formData.graduation_year),
-        },
-        experience: {
-          previous_roles: formData.previous_roles.filter((r) => r.title && r.company),
-        },
-        applicant_name: formData.linkedin_url,
-        applicant_email: user!.email,
-      });
-      if (appError) throw appError;
-
-      toast({ title: 'Success!', description: 'Your application has been submitted successfully.' });
-      navigate('/dashboard');
-    } catch (err: any) {
-      console.error('handleSubmit error:', err);
-      setError(err.message || 'Unexpected error occurred.');
-    } finally {
+    if (existingApp) {
+      setError('You have already applied for this job.');
       setSubmitting(false);
+      return;
     }
-  };
 
-  // --- Loading Page ---
+    // --- Upload Resume ---
+    const fileExt = resumeFile.name.split('.').pop();
+    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+    const { error: uploadError } = await supabase.storage
+      .from('resumes')
+      .upload(fileName, resumeFile, { upsert: true });
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(fileName);
+    const resumeUrl = urlData?.publicUrl;
+    if (!resumeUrl) throw new Error('Could not retrieve resume URL.');
+
+    // --- Insert into applications (profile auto-handled by trigger) ---
+    const { error: appError } = await supabase.from('applications').insert({
+      job_id: id,
+      resume_url: resumeUrl,
+      status: 'submitted',
+      education: {
+        college: formData.college,
+        gpa: parseFloat(formData.gpa),
+        degree: formData.degree,
+        graduation_year: parseInt(formData.graduation_year),
+      },
+      experience: {
+        previous_roles: formData.previous_roles.filter((r) => r.title && r.company),
+      },
+      full_name: user.user_metadata?.full_name || user.email,
+      phone: formData.phone,
+      linkedin_url: formData.linkedin_url,
+      github_url: formData.github_url,
+    });
+
+    if (appError) throw appError;
+
+    toast({ title: 'Success!', description: 'Your application has been submitted successfully.' });
+    navigate('/dashboard');
+  } catch (err: any) {
+    console.error('handleSubmit error:', err);
+    setError(err.message || 'Unexpected error occurred.');
+  } finally {
+    setSubmitting(false);
+  }
+};
+
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-slate-50">
@@ -266,10 +248,14 @@ export default function ApplyPage() {
     );
   }
 
+  // ... (your existing JSX form logic stays the same)
+
+
   // --- Main UI ---
   return (
     <div className="min-h-screen bg-slate-50">
       <Navbar />
+      
       <div className="max-w-3xl mx-auto px-4 py-8">
         <Card>
           <CardHeader>
