@@ -73,6 +73,21 @@ function defaultMockRuns() {
   ]
 }
 
+/* ----------------------------- Validation Helpers ----------------------------- */
+
+// validation for run (simple checks)
+function runValidations(run: any) {
+  const warnings: string[] = []
+  if (!run) return warnings
+  // missing bank details
+  const missingBank = run.lines.filter((l: any) => !l.bank_account)
+  if (missingBank.length) warnings.push(`${missingBank.length} employee(s) missing bank details`)
+  // negative net (shouldn't occur here, but check)
+  const negativeNet = run.lines.filter((l: any) => (l.net ?? 0) < 0)
+  if (negativeNet.length) warnings.push(`${negativeNet.length} employee(s) have negative net pay`)
+  return warnings
+}
+
 /* ----------------------------- Main Exported Component ----------------------------- */
 
 export default function EnhancedPayrollAdmin({ role = 'admin' }: { role?: 'admin' | 'hr' | 'manager' | 'employee' }) {
@@ -277,19 +292,6 @@ export default function EnhancedPayrollAdmin({ role = 'admin' }: { role?: 'admin
     if (selectedRunId === runId) setSelectedRunId(null)
   }
 
-  // validation for run (simple checks)
-  function runValidations(run: any) {
-    const warnings: string[] = []
-    if (!run) return warnings
-    // missing bank details
-    const missingBank = run.lines.filter((l: any) => !l.bank_account)
-    if (missingBank.length) warnings.push(`${missingBank.length} employee(s) missing bank details`)
-    // negative net (shouldn't occur here, but check)
-    const negativeNet = run.lines.filter((l: any) => (l.net ?? 0) < 0)
-    if (negativeNet.length) warnings.push(`${negativeNet.length} employee(s) have negative net pay`)
-    return warnings
-  }
-
   /* ----------------- Render ----------------- */
 
   return (
@@ -391,7 +393,7 @@ export default function EnhancedPayrollAdmin({ role = 'admin' }: { role?: 'admin
 
           {/* Selected Run editor */}
           {selectedRunId && (
-            <RunEditor
+            <PayrollRunEditor
               run={runs.find(r => r.id === selectedRunId)}
               canEdit={canManage}
               onClose={() => setSelectedRunId(null)}
@@ -548,12 +550,107 @@ function EditSalaryForm({ initial, onCancel, onSave }: any) {
   )
 }
 
+function CreateRunForm({ defaultMonth, defaultYear, onCancel, onCreate, selectedCount, loading }: any) {
+  const [month, setMonth] = useState(defaultMonth)
+  const [year, setYear] = useState(defaultYear)
+  const [onlySelected, setOnlySelected] = useState(false)
 
-// function CreateRunForm({ defaultMonth, defaultYear, onCancel, onCreate, selectedCount, loading }: any) {
-//   const [month, setMonth] = useState(defaultMonth)
-//   const [year, setYear] = useState(defaultYear)
-//   const [onlySelected, setOnlySelected] = useState(false)
-//   return (
-//     <div>
-//       <label className="block text-sm mb-1">Month</label>
-//       <select value={month} onChange={e => set
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm mb-1">Month</label>
+        <select value={month} onChange={e => setMonth(Number(e.target.value))} className="w-full p-2 border rounded">
+          {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className="block text-sm mb-1">Year</label>
+        <input type="number" value={year} onChange={e => setYear(Number(e.target.value))} className="w-full p-2 border rounded" />
+      </div>
+
+      {selectedCount > 0 && (
+        <div className="flex items-center gap-2">
+          <input type="checkbox" checked={onlySelected} onChange={e => setOnlySelected(e.target.checked)} />
+          <span className="text-sm text-gray-600">Include only selected employees ({selectedCount})</span>
+        </div>
+      )}
+
+      <div className="flex justify-end gap-2 mt-4">
+        <button onClick={onCancel} className="px-3 py-1 btn-glass">Cancel</button>
+        <button
+          disabled={loading}
+          onClick={() => onCreate(month, year, onlySelected)}
+          className="px-3 py-1 bg-primary-500 text-white rounded flex items-center gap-2"
+        >
+          {loading ? 'Creating...' : 'Create Run'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function PayrollRunEditor({ run, canEdit, onClose, onUpdateLine, onProcess, onExport, onDelete }: any) {
+  if (!run) return null
+
+  const warnings = runValidations(run);
+
+  return (
+    <Modal title={`Payroll Run: ${run.month}/${run.year}`} onClose={onClose}>
+      <div className="space-y-4">
+        {warnings.length > 0 && (
+          <div className="p-2 bg-yellow-100 text-yellow-800 rounded">
+            <strong>Warnings:</strong>
+            <ul className="list-disc pl-5">
+              {warnings.map((w, i) => <li key={i}>{w}</li>)}
+            </ul>
+          </div>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-400 border-b border-white/10">
+                <th>Name</th>
+                <th className="text-right">Base</th>
+                <th className="text-right">Allowances</th>
+                <th className="text-right">Bonus</th>
+                <th className="text-right">Gross</th>
+                <th className="text-right">Net</th>
+              </tr>
+            </thead>
+            <tbody>
+              {run.lines.map((line: any) => (
+                <tr key={line.id} className="border-b border-white/5 hover:bg-white/5 transition">
+                  <td>{line.employee_name}</td>
+                  <td className="text-right">
+                    {canEdit ? (
+                      <input
+                        type="number"
+                        value={line.base_salary}
+                        className="w-20 p-1 text-right border rounded bg-gray-50 dark:bg-gray-700"
+                        onChange={e => onUpdateLine(line.id, { base_salary: Number(e.target.value) })}
+                      />
+                    ) : line.base_salary}
+                  </td>
+                  <td className="text-right">{line.allowances}</td>
+                  <td className="text-right">{line.bonus}</td>
+                  <td className="text-right">{line.gross}</td>
+                  <td className="text-right">{line.net}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          {canEdit && <button onClick={onProcess} className="px-3 py-1 bg-green-500 text-white rounded">Process Run</button>}
+          <button onClick={() => onExport('payslips')} className="px-3 py-1 btn-glass">Export Payslips</button>
+          <button onClick={onDelete} className="px-3 py-1 bg-rose-500 text-white rounded">Delete Run</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
