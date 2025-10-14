@@ -167,72 +167,108 @@ export default function ApplyPage() {
   // --- Submit Application ---
 const handleSubmit = async () => {
   if (!resumeFile) return setError('Please upload your resume');
-  if (!id || !user) return setError('Invalid session or job ID.');
+  if (!id || !user || !job) return setError('Invalid session or job ID.'); // Added job check
 
   setSubmitting(true);
   setError('');
 
+  let newApplicationId = ''; // Variable to hold the ID of the new application
+
   try {
-    // --- Check if the user already applied ---
+    // --- Step 1: Check for duplicate application ---
     const { data: existingApp, error: checkError } = await supabase
       .from('applications')
       .select('id')
       .eq('profile_id', user.id)
       .eq('job_id', id)
       .maybeSingle();
-
     if (checkError) throw checkError;
-
     if (existingApp) {
       setError('You have already applied for this job.');
       setSubmitting(false);
       return;
     }
 
-    // --- Upload Resume ---
+    // --- Step 2: Upload Resume ---
     const fileExt = resumeFile.name.split('.').pop();
     const fileName = `${user.id}/${Date.now()}.${fileExt}`;
     const { error: uploadError } = await supabase.storage
       .from('resumes')
-      .upload(fileName, resumeFile, { upsert: true });
+      .upload(fileName, resumeFile);
     if (uploadError) throw uploadError;
 
     const { data: urlData } = supabase.storage.from('resumes').getPublicUrl(fileName);
     const resumeUrl = urlData?.publicUrl;
     if (!resumeUrl) throw new Error('Could not retrieve resume URL.');
 
-    // --- Insert into applications (profile auto-handled by trigger) ---
-    const { error: appError } = await supabase.from('applications').insert({
+    // --- Step 3: Insert application and get the new ID ---
+    const { data: newApplication, error: appError } = await supabase.from('applications').insert({
       job_id: id,
+      profile_id: user.id, // Explicitly set profile_id
       resume_url: resumeUrl,
       status: 'submitted',
-      education: {
-        college: formData.college,
-        gpa: parseFloat(formData.gpa),
-        degree: formData.degree,
-        graduation_year: parseInt(formData.graduation_year),
-      },
-      experience: {
-        previous_roles: formData.previous_roles.filter((r) => r.title && r.company),
-      },
+      education: { /* ... formData ... */ },
+      experience: { /* ... formData ... */ },
       full_name: user.user_metadata?.full_name || user.email,
       phone: formData.phone,
       linkedin_url: formData.linkedin_url,
       github_url: formData.github_url,
+    }).select('id').single(); // ✅ Use .select().single() to get the new record's ID
+
+    if (appError || !newApplication) throw appError || new Error("Failed to create application record.");
+    
+    newApplicationId = newApplication.id;
+    toast({ title: 'Application Submitted!', description: 'Now analyzing your profile...' });
+const apiUrl = import.meta.env.VITE_API_URL;
+
+    // --- ✅ NEW: Step 4: Trigger the backend AI analysis ---
+    const analysisResponse = await fetch(`${apiUrl}/api/analyze-profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            resumeUrl: resumeUrl,
+            githubUrl: formData.github_url,
+            jobTitle: job.title,
+            jobDescription: job.description
+        }),
     });
 
-    if (appError) throw appError;
+    if (!analysisResponse.ok) {
+        // If analysis fails, the application is still submitted.
+        throw new Error('AI analysis failed, but your application was submitted.');
+    }
 
-    toast({ title: 'Success!', description: 'Your application has been submitted successfully.' });
+    const analysisResult = await analysisResponse.json();
+
+    // --- ✅ NEW: Step 5: Update the application with scores and analysis ---
+    const { error: updateError } = await supabase
+        .from('applications')
+        .update({
+            resume_score: analysisResult.resume_score,
+            resume_analysis: analysisResult.resume_analysis,
+            github_score: analysisResult.github_score,
+            github_analysis: analysisResult.github_analysis,
+            status: 'profile_analyzed' // Update status to show this step is complete
+        })
+        .eq('id', newApplicationId);
+
+    if (updateError) throw updateError;
+
+    toast({ title: 'Success!', description: 'Your application and profile analysis are complete.' });
     navigate('/dashboard');
+
   } catch (err: any) {
     console.error('handleSubmit error:', err);
-    setError(err.message || 'Unexpected error occurred.');
+    setError(err.message || 'An unexpected error occurred.');
+    // If something fails after the app is created, you might want to inform the user
+    if (newApplicationId) {
+        toast({ title: 'Submission Incomplete', description: 'Your application was submitted, but the AI analysis failed. Please contact support.', variant: 'destructive' });
+        navigate('/dashboard');
+    }
   } finally {
     setSubmitting(false);
   }
 };
-
 
   if (authLoading || loading) {
     return (

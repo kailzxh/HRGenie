@@ -10,4 +10,14 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // ✅ ADD THIS SERVER CONFIGURATION
+  server: {
+    proxy: {
+      // Forward any request that starts with "/api" to your backend server
+      '/api': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+    }
+  }
 })

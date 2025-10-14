@@ -21,8 +21,12 @@ const statusColors: Record<string, string> = {
   github_analysis: 'bg-orange-500',
   technical_interview: 'bg-purple-500',
   hr_interview: 'bg-pink-500',
+  hr_screening: 'bg-teal-500',        // ✅ new
+  profile_analyzed: 'bg-indigo-500',  // ✅ new
   offer: 'bg-green-500',
   rejected: 'bg-red-500',
+  technical_screening: 'bg-cyan-500', // ✅ new
+
 };
 
 const statusLabels: Record<string, string> = {
@@ -31,9 +35,13 @@ const statusLabels: Record<string, string> = {
   github_analysis: 'GitHub Analysis',
   technical_interview: 'Technical Interview',
   hr_interview: 'HR Interview',
+  hr_screening: 'HR Screening',       // ✅ new
+  profile_analyzed: 'Profile Analyzed', // ✅ new
   offer: 'Offer',
   rejected: 'Rejected',
+  technical_screening: 'Technical Screening', // ✅ new
 };
+
 
 export default function DashboardPage(): JSX.Element {
   const navigate = useNavigate();

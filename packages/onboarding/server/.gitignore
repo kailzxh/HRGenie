@@ -1,0 +1,5 @@
+# .gitignore
+onboarding/server/.env
+onboarding/server/gcp-credentials.json
+onboarding/server/node_modules
+onboarding/server/dist
