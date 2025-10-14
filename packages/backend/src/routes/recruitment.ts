@@ -1,4 +1,3 @@
-// backend/src/routes/recruitment.ts
 import { Router } from 'express';
 import { body } from 'express-validator';
 import * as recruitmentController from '../controllers/recrutmentController';
@@ -6,13 +5,10 @@ import * as recruitmentController from '../controllers/recrutmentController';
 const router = Router();
 
 // =================== Jobs ===================
-// Get all jobs
+// Public routes
 router.get('/jobs', recruitmentController.getJobs);
-
-// Get a single job by ID
 router.get('/jobs/:id', recruitmentController.getJob);
 
-// Create a new job
 router.post(
   '/jobs',
   [
@@ -24,16 +20,25 @@ router.post(
   recruitmentController.createJob
 );
 
-// Update a job
 router.put('/jobs/:id', recruitmentController.updateJob);
-
-// Delete a job
 router.delete('/jobs/:id', recruitmentController.deleteJob);
 
-// // =================== Candidates ===================
-// router.get('/candidates', recruitmentController.getCandidates);
+// =================== Applications ===================
+// Important: order matters! Static routes before dynamic ones.
 
-// // =================== Interviews ===================
-// router.get('/interviews', recruitmentController.getInterviews);
+// ✅ Export applications (must come before :id)
+router.get('/applications/export', recruitmentController.exportApplications);
+
+// ✅ Get all applications
+router.get('/applications', recruitmentController.getApplications);
+
+// ✅ Bulk update applications
+router.post('/applications/bulk-update', recruitmentController.bulkUpdateApplications);
+
+// ✅ Update a single application's status
+router.post('/applications/:id/status', recruitmentController.updateApplicationStatus);
+
+// ✅ Get a single application by ID (keep last)
+router.get('/applications/:id', recruitmentController.getApplication);
 
 export default router;
