@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { User as SupabaseUser, Session } from '@supabase/supabase-js'
-import { supabase } from '@/config/supabase'
+import { User as SupabaseUser } from '@supabase/supabase-js'
+import { supabase, supabaseServer } from '@/config/supabase'
 import { User, LoginCredentials, UserRole } from '@/types'
 
 interface AuthState {
@@ -82,8 +82,8 @@ export const useAuthStore = create<AuthStore>()(
         try {
           let user: SupabaseUser | null = null
 
-          if (credentials.provider === 'google') {
-            const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' })
+          if (credentials.provider === 'google' && supabase.auth.signInWithOAuth) {
+            const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
             if (error) throw error
             user = data.user
           } else if (credentials.email && credentials.password) {
@@ -101,7 +101,7 @@ export const useAuthStore = create<AuthStore>()(
 
           // Fetch user profile from your database
           const { data: profile, error: profileError } = await supabase
-            .from('profiles')
+            .from('profiles') // Assuming 'profiles' table is in the public schema
             .select('*')
             .eq('id', user.id)
             .single()

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
+import { supabase } from '@/config/supabase'
 import { Download, Search, Edit3, CheckCircle2, Trash2, Play, FileText, Plus, X, AlertTriangle } from 'lucide-react'
 
 /**
@@ -14,36 +15,6 @@ import { Download, Search, Edit3, CheckCircle2, Trash2, Play, FileText, Plus, X,
 
 const rupee = (n: number) => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
 
-function generateMockEmployees(count = 28) {
-  const depts = ['Engineering', 'Sales', 'Marketing', 'HR', 'Finance']
-  const names = ['Amit', 'Priya', 'Rahul', 'Sneha', 'Vikram', 'Riya', 'Siddharth', 'Anika']
-  return Array.from({ length: count }).map((_, i) => {
-    const base = 35000 + Math.round(Math.random() * 90000)
-    const allowances = Math.round(base * 0.18)
-    const bonus = Math.random() > 0.85 ? Math.round(base * (Math.random() * 0.4)) : 0
-    const tax = Math.round((base + allowances + bonus) * 0.12)
-    const pf = Math.round(base * 0.12)
-    const deductions = tax + pf
-    const net = base + allowances + bonus - deductions
-    return {
-      id: `emp-${i + 1}`,
-      uid: `UID${1000 + i}`,
-      name: `${names[i % names.length]} ${i + 1}`,
-      email: `user${i + 1}@example.com`,
-      department: depts[i % depts.length],
-      base_salary: base,
-      allowances,
-      bonus,
-      gross: base + allowances + bonus,
-      tax,
-      pf,
-      deductions,
-      net,
-      bank_account: Math.random() > 0.12 ? `XXXX-XXXX-${1000 + i}` : null, // some missing bank details to trigger validation
-      status: 'active'
-    }
-  })
-}
 
 /* Mock payroll runs storage */
 function defaultMockRuns() {
@@ -95,7 +66,40 @@ export default function EnhancedPayrollAdmin({ role = 'admin' }: { role?: 'admin
   const canViewTeam = role === 'manager' || canManage
 
   // data
-  const [employees, setEmployees] = useState<any[]>(() => generateMockEmployees(34))
+  const [employees, setEmployees] = useState<any[]>([])
+useEffect(() => {
+  async function loadEmployees() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        setError('Not authenticated');
+        return;
+      }
+
+      const res = await fetch('http://localhost:5000/api/payroll/employees', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('Employee API error:', errText);
+        setError(`Failed to load employees: ${res.status}`);
+        return;
+      }
+
+      const data = await res.json();
+      setEmployees(data);
+    } catch (err) {
+      console.error('Failed to load employees:', err);
+      setError('Unexpected error');
+    }
+  }
+
+  loadEmployees();
+}, []);
+
+
   const [filter, setFilter] = useState('')
   const [departmentFilter, setDepartmentFilter] = useState<string>('')
   const [statusFilter, setStatusFilter] = useState<string>('')
@@ -654,3 +658,7 @@ function PayrollRunEditor({ run, canEdit, onClose, onUpdateLine, onProcess, onEx
     </Modal>
   )
 }
+function setError(arg0: string) {
+  throw new Error('Function not implemented.')
+}
+
