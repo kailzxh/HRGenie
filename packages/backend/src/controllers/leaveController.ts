@@ -355,43 +355,116 @@ export const addHoliday = async (req: AuthRequest, res: Response) => {
 
 // --- CONTROLLER FOR CREATING A NEW POLICY ---
 // --- CONTROLLER FOR CREATING A NEW POLICY (FIXED) ---
+// --- CONTROLLER FOR CREATING A NEW POLICY (FIXED) ---
+// In leaveController.ts
+
+// In leaveController.ts
+
 export const createPolicy = async (req: AuthRequest, res: Response) => {
     try {
-        const { name, totalDays, description, icon, color } = req.body;
-        console.log("Creating policy:", req.body);
+        // 1. Get all the new data from the form
+        const { 
+          name, totalDays, description, icon, color,
+          accrual_frequency, carry_forward_limit, is_encashable 
+        } = req.body;
         
-        // --- THIS IS THE FIX ---
+        console.log("Creating full policy:", req.body);
+        
+        // 2. Insert all fields from the form into their matching columns
         const { error } = await supabase.from('leave_policies').insert({
-            name: name,
-            total_days: totalDays, // Map frontend 'totalDays' to 'total_days' column
-            description: description,
-            icon: icon,
-            color: color
-        });
-        if (error) throw error;
-        // --- END OF FIX ---
+            name: name,
+            total_days: totalDays,
+         description: description,
+            icon: icon,
+            color: color,
+            accrual_frequency: accrual_frequency,  // <-- Now from the form
+    carry_forward_limit: carry_forward_limit, // <-- Now from the form
+            is_encashable: is_encashable,           // <-- Now from the form
+            approval_workflow: 'Manager' // You can still default this
+        });
+
+        if (error) throw error;
 
         res.status(201).json({ message: 'Policy created successfully' });
-    } catch (error: any) {
+ } catch (error: any) {
         console.error("Error creating policy:", error.message);
         res.status(500).json({ message: 'Failed to create policy', error: error.message });
     }
 };
 
 // --- CONTROLLER FOR ADJUSTING LEAVE BALANCE ---
+// --- CONTROLLER FOR ADJUSTING LEAVE BALANCE (FIXED) ---
 export const adjustBalance = async (req: AuthRequest, res: Response) => {
     try {
-        const { email, leaveType, days, reason, action } = req.body;
-        console.log("Adjusting balance:", email, leaveType, days, reason, action);
-
-        // TODO: Add your complex logic here
-        // 1. Find employee_id from email
-        // 2. Find policy_id from leaveType
-        // 3. Call a Supabase RPC function (like 'update_leave_balance')
+        // 1. Get data from the request body
+        const { employeeId, policyName, days, action } = req.body; 
+        // Note: Frontend sends employeeId, policyName. Assuming employeeId is the EMAIL.
         
-        res.status(200).json({ message: 'Balance adjusted successfully' });
+        console.log("Adjusting balance request:", employeeId, policyName, days, action);
+
+        // 2. Basic Validation
+        if (!employeeId || !policyName || !days || !action) {
+            throw new Error("Missing required fields: employeeId (email), policyName, days, action.");
+        }
+        if (days <= 0) {
+            throw new Error("Days must be a positive number.");
+        }
+        if (action !== 'credit' && action !== 'debit') {
+            throw new Error("Invalid action. Must be 'credit' or 'debit'.");
+        }
+
+        // 3. Find the internal employee ID using the provided email
+        const { data: employee, error: employeeError } = await supabase
+            .from('employees')
+            .select('id')
+            .eq('email', employeeId) // Assuming employeeId from form is the email
+            .single();
+
+        if (employeeError || !employee) {
+            console.error("Employee not found for email:", employeeId, employeeError);
+            throw new Error(`No employee profile found with email: ${employeeId}.`);
+        }
+        const internalEmployeeId = employee.id;
+
+        // 4. Find the policy ID using the policy name
+        const { data: policy, error: policyError } = await supabase
+            .from('leave_policies')
+            .select('id')
+            .eq('name', policyName)
+            .single();
+            
+        if (policyError || !policy) {
+            console.error("Leave policy not found:", policyName, policyError);
+            throw new Error(`Invalid leave policy specified: ${policyName}.`);
+        }
+        const policyId = policy.id;
+
+        // 5. Determine the year (use the current year) and days to add/subtract
+        const currentYear = new Date().getFullYear();
+        const daysToAddOrSubtract = action === 'credit' ? days : -days; // Negative for debit
+
+        // 6. Call the Supabase RPC function to update the balance
+        console.log(`Calling RPC update_leave_balance with: employee=${internalEmployeeId}, policy=${policyId}, days=${daysToAddOrSubtract}, year=${currentYear}`);
+        const { error: rpcError } = await supabase.rpc('update_leave_balance', {
+            p_employee_id: internalEmployeeId,
+            p_policy_id: policyId,
+            p_days_to_add: daysToAddOrSubtract,
+            p_year: currentYear 
+        });
+
+        if (rpcError) {
+            console.error("RPC Error updating leave balance:", rpcError);
+            throw new Error(`Failed to update leave balance: ${rpcError.message}`);
+        }
+
+        // 7. Send success response
+        res.status(200).json({ message: `Balance adjusted successfully (${action} ${days} days).` });
+
     } catch (error: any) {
         console.error("Error adjusting balance:", error.message);
-        res.status(500).json({ message: 'Failed to adjust balance', error: error.message });
+        // Ensure we don't crash if headers were somehow already sent
+        if (!res.headersSent) {
+            res.status(500).json({ message: 'Failed to adjust balance', error: error.message });
+        }
     }
 };

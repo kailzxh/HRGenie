@@ -287,7 +287,7 @@ export interface AttendanceRecord {
   checkIn?: string
   checkOut?: string
   breakTime?: number
-  totalHours?: number
+  totalHours?: number | null
   overtime?: number
   status: AttendanceStatus
   location?: string
@@ -515,6 +515,229 @@ export interface UserSettings {
   }
 }
 
+
+// @/types/attendance.ts or integrated into @/types/index.ts
+
+// --- Base Types from Database Schema ---
+
+/**
+ * Represents the structure of the 'work_shifts' table.
+ */
+export interface WorkShift {
+  id: string; // UUID
+  name: string;
+  start_time: string; // TIME 'HH:MM:SS'
+  end_time: string; // TIME 'HH:MM:SS'
+  work_hours: number; // NUMERIC(4, 2)
+  grace_period_minutes: number; // INTEGER
+  created_at?: string; // TIMESTAMPTZ (ISO string)
+  updated_at?: string; // TIMESTAMPTZ (ISO string)
+}
+
+/**
+ * Represents the structure of the 'employee_shifts' table.
+ */
+export interface EmployeeShift {
+  id: string; // UUID
+  employee_id: string; // UUID (references employees.id)
+  shift_id: string; // UUID (references work_shifts.id)
+  effective_from: string; // DATE 'YYYY-MM-DD'
+  created_at?: string; // TIMESTAMPTZ (ISO string)
+}
+
+/**
+ * Represents the structure of the 'attendance_records' table.
+ * Status values align with the CHECK constraint.
+ */
+export type AttendanceRecordStatus =
+  | 'Present' | 'Absent' | 'Late' | 'Half Day - First Half' | 'Half Day - Second Half'
+  | 'Leave' | 'Holiday' | 'Weekend' | 'Missing Punch'
+  | 'Regularized - Present' | 'Regularized - Late';
+
+export interface AttendanceRecord {
+  id: string; // UUID
+  employee_id: string; // UUID
+  attendance_date: string; // DATE 'YYYY-MM-DD'
+  clock_in_time: string | null; // TIMESTAMPTZ (ISO string) or null
+  clock_out_time: string | null; // TIMESTAMPTZ (ISO string) or null 
+  hours_worked: number | null; // NUMERIC(4, 2) or null
+  status: AttendanceRecordStatus;
+  work_location: string | null; // e.g., 'Office', 'Home', 'Client Site'
+  notes?: string | null;
+  created_at?: string; // TIMESTAMPTZ (ISO string)
+  updated_at?: string; // TIMESTAMPTZ (ISO string)
+}
+
+/**
+ * Represents the structure of the 'regularization_requests' table.
+ * Status values align with the CHECK constraint.
+ */
+export type RegularizationStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type RequestedAttendanceStatus = 'Present' | 'Absent' | 'Late' | 'Half Day - First Half' | 'Half Day - Second Half';
+
+
+export interface RegularizationRequest {
+  checkIn: any
+  checkOut: any
+  date?: string // Optional if you want a direct property for UI
+  id: string
+  employee_id: string
+  attendance_record_id: string | null
+  request_date: string // 'YYYY-MM-DD'
+  original_clock_in: string | null
+  original_clock_out: string | null
+  requested_clock_in: string | null
+  requested_clock_out: string | null
+  requested_status: RequestedAttendanceStatus | null
+  reason: string
+  status: RegularizationStatus
+  processed_by: string | null
+  processed_at: string | null
+  comments: string | null
+  created_at?: string
+  updated_at?: string
+
+  employeeName?: string
+  processedByName?: string
+}
+
+// --- Helper Types for Frontend Components ---
+
+/**
+ * Structure for displaying daily status in the AttendanceCalendar.
+ * Backend controllers will assemble this using data from multiple tables.
+ */
+export interface AttendanceDayStatus {
+  date: string; // YYYY-MM-DD
+  status: AttendanceRecordStatus | 'Leave' | 'Holiday' | 'Weekend'; // Combines statuses
+  clockIn?: string | null; // HH:mm format (formatted by backend)
+  clockOut?: string | null; // HH:mm format (formatted by backend)
+  hoursWorked?: number | null;
+  needsRegularization?: boolean; // Flag for UI indicator
+  leaveType?: string; // From leave_requests table
+  holidayName?: string; // From company_holidays table
+}
+
+/**
+ * Structure for the AttendanceSummaryWidget.
+ * Calculated by backend controllers.
+ */
+export interface AttendanceSummaryData {
+    present: number;    // Count of present days (incl. regularized)
+    absent: number;     // Count of absent days
+    late: number;       // Count of late days (incl. regularized)
+    workFromHome: number;// Count based on work_location
+    totalDays: number;  // Total working days in the period (month - weekends - holidays)
+    totalHoursMonth?: number; // Sum of hours_worked
+    avgHoursDay?: number;   // Calculated average
+    todayStatus?: AttendanceDayStatus['status'] | 'Not Clocked In' | null; // Status for today
+    todayClockIn?: string | null; // HH:mm format for today
+}
+
+
+// --- API Response Types for Views ---
+
+/**
+ * Data structure returned by GET /api/attendance/employee-view
+ */
+export interface EmployeeAttendanceViewData {
+  // Stats Cards
+  presentDays: number;
+  todaysHours: number; // Formatted to 1 or 2 decimal places
+  pendingRegularizationsCount: number;
+  currentWorkLocation: string;
+  // Calendar Data
+  monthlyAttendance: AttendanceDayStatus[];
+  // History List
+  regularizationHistory: RegularizationRequest[]; // Should include employeeName potentially
+  // Summary Widget
+  attendanceSummary: AttendanceSummaryData;
+}
+
+/**
+ * Data structure returned by GET /api/attendance/manager-view
+ */
+export interface ManagerAttendanceViewData {
+  // Stats Cards
+  teamPresentToday: string; // "Count/Total"
+  teamLateToday: number;
+  pendingApprovalsCount: number;
+  teamAverageAttendance: string; // "Percent%"
+  // Calendar Data (Aggregated)
+  teamMonthlyAttendanceSummary: {
+     date: string; // YYYY-MM-DD
+     presentCount: number;
+     absentCount: number;
+     lateCount: number;
+     onLeaveCount: number; // Count of team members on leave
+  }[];
+  // Other Sections
+  teamInsights: string[];
+  pendingRegularizationApprovals: RegularizationRequest[]; // MUST include employeeName
+  // Summary Widget (Aggregated)
+  teamAttendanceSummary: AttendanceSummaryData;
+}
+
+/**
+ * Data structure returned by GET /api/attendance/admin-view
+ */
+export interface AdminAttendanceViewData {
+  // Stats Cards (Company-wide or filtered scope)
+  companyPresentToday: string;
+  companyLateToday: number;
+  totalPendingRequests: number;
+  companyAverageAttendance: string;
+  // Calendar Data (Aggregated)
+  companyAttendanceSummary: {
+     date: string;
+     presentCount: number;
+     absentCount: number;
+     lateCount: number;
+     onLeaveCount: number;
+  }[];
+  // Other Sections
+  systemAlerts: string[];
+  // Optional: All pending requests if admin approves
+  allPendingRegularizations?: RegularizationRequest[]; // MUST include employeeName
+  // Summary Widget (Aggregated)
+  companyWideAttendanceSummary: AttendanceSummaryData;
+}
+
+// --- Types for API Action Payloads/Responses (Optional but good practice) ---
+
+export interface ClockInPayload {
+    location: string;
+    // Potentially add timestamp if frontend allows overriding
+}
+
+export interface ClockInOutResponse {
+    message: string;
+    record: AttendanceRecord;
+}
+
+export interface RegularizePayload {
+    date: string; // YYYY-MM-DD
+    reason: string;
+    requestedClockIn?: string | null; // HH:mm
+    requestedClockOut?: string | null; // HH:mm
+    requestedStatus?: RequestedAttendanceStatus | null;
+}
+
+export interface RegularizeResponse {
+    message: string;
+    request: RegularizationRequest;
+}
+
+export interface RegularizeActionPayload {
+    requestId: string | number; // UUID or ID
+    status: 'approved' | 'rejected';
+    comments?: string | null;
+}
+
+export interface RegularizeActionResponse {
+    message: string;
+    request: RegularizationRequest; // The updated request
+}
 // Export utility types
 export type Optional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>
 export type Required<T, K extends keyof T> = T & { [P in K]-?: T[P] }

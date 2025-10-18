@@ -8,6 +8,7 @@ import employeeRoutes from './routes/employees'; // Supabase employee routes
 import recruitmentRoutes from './routes/recruitment'; // Recruitment routes
 import payrollRoutes from './routes/payroll';
 import leaveRoutes from './routes/leaves';   
+import attendanceRoutes from './routes/attendanceRoutes';  
 const app = express();
 const PORT = process.env.BACKEND_PORT || 5000;
 
@@ -30,6 +31,8 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/recruitment', recruitmentRoutes); // <-- Added recruitment
 app.use('/api/payroll', payrollRoutes); 
 app.use('/api/leaves', leaveRoutes);
+app.use('/api/attendance', attendanceRoutes);
+
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok' }));

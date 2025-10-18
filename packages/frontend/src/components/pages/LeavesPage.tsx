@@ -13,6 +13,9 @@ import {
   LeaveFormState, LeaveStatus
 } from '@/types' // Assuming @/types maps to src/types/index.ts
 
+import { jwtDecode } from "jwt-decode"; // <-- ADD THIS IMPORT
+// ... other imports
+
 // Base URL for your backend API
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -53,9 +56,100 @@ export default function LeavesPage() {
   });
 
   const [newHolidayForm, setNewHolidayForm] = useState({ name: '', date: '' });
-  const [newPolicyForm, setNewPolicyForm] = useState({ name: '', totalDays: 12, description: '', icon: 'Calendar', color: 'gray' });
-  const [manualAdjustmentForm, setManualAdjustmentForm] = useState({ employeeId: '', policyName: '', days: 0 });
+  const [newPolicyForm, setNewPolicyForm] = useState({
+    name: '',
+    totalDays: 12,
+    description: '',
+    icon: 'Calendar',
+    color: 'gray',
+    accrual_frequency: 'yearly', // <-- ADDED
+    carry_forward_limit: 0,      // <-- ADDED
+    is_encashable: false         // <-- ADDED
+  });
+ const [manualAdjustmentForm, setManualAdjustmentForm] = useState({ 
+  employeeEmail: '', // Renamed for clarity - matches the placeholder
+  policyName: '', 
+  days: 0,
+  reason: ''       // Added reason field
+});
+  const [userRole, setUserRole] = useState<string | null>(null); 
+  // State to manage initial role fetching
+  const [isRoleLoading, setIsRoleLoading] = useState(true); 
+  // Default view state (will be updated based on role)
+  
+useEffect(() => {
+    // --- Function to fetch user role ---
+    const fetchUserRoleAndSetDefaultView = async () => {
+      setIsRoleLoading(true); // Start role loading
+      const token = localStorage.getItem('supabase-auth-token');
+      if (!token) {
+        console.error("No auth token found, cannot determine role.");
+        // Handle appropriately - maybe redirect to login or default to employee
+        setUserRole('employee'); 
+        setView('employee');
+        setIsRoleLoading(false);
+        return;
+      }
 
+      try {
+        // Decode the token to get the role
+        // Adjust the path (e.g., app_metadata, user_metadata) based on where Supabase/your auth stores the role
+        const decodedToken: any = jwtDecode(token);
+        const role = decodedToken?.user_metadata?.role || decodedToken?.role || 'employee'; 
+        
+        console.log("User role detected:", role); // For debugging
+        setUserRole(role);
+
+        // --- Set Default View based on Role ---
+        if (role === 'admin' || role === 'hr') {
+          setView('hr_admin');
+        } else if (role === 'manager') {
+          setView('manager');
+        } else {
+          setView('employee');
+        }
+        // --- End Set Default View ---
+
+      } catch (error) {
+        console.error("Error decoding token or fetching user role:", error);
+        setUserRole('employee'); // Default to employee on error
+        setView('employee');
+      } finally {
+         setIsRoleLoading(false); // Finish role loading
+      }
+    };
+
+    fetchUserRoleAndSetDefaultView(); // Call it only once on mount
+
+  }, []);
+  useEffect(() => {
+    // Only fetch data if the role has been determined and is not loading
+    if (!isRoleLoading && userRole) { 
+      const fetchDataForView = async () => {
+        setIsLoading(true); // Start data loading
+        try {
+          // Check if the user is allowed to access the current view based on their role
+          if (view === 'employee') {
+             await fetchEmployeeData();
+          } else if (view === 'manager' && (userRole === 'manager' || userRole === 'admin' || userRole === 'hr')) {
+             await fetchManagerData();
+          } else if (view === 'hr_admin' && (userRole === 'admin' || userRole === 'hr')) {
+             await fetchHrAdminData();
+          } else {
+             console.warn(`User role '${userRole}' does not have access to view '${view}'. Defaulting to employee view.`);
+             setView('employee'); // Force back to employee view if somehow they switch to an invalid one
+             await fetchEmployeeData(); // Fetch employee data as fallback
+          }
+        } catch (error) {
+          console.error(`Failed to fetch data for ${view} view:`, error);
+          // Handle error appropriately, maybe show an error message
+        } finally {
+          setIsLoading(false); // Finish data loading
+        }
+      };
+      fetchDataForView();
+    }
+  }, [view, userRole, isRoleLoading]);
   useEffect(() => {
     const fetchDataForView = async () => {
       setIsLoading(true);
@@ -245,18 +339,41 @@ export default function LeavesPage() {
     return <div className="text-center p-8">Loading...</div>;
   }
   return (
+    
      <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Leave Management</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage leave requests and track balances</p>
-        </div>
-        <div className="flex space-x-2">
-          <button onClick={() => setView('employee')} className={`px-4 py-2 rounded-lg ${view === 'employee' ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}>Employee</button>
-          <button onClick={() => setView('manager')} className={`px-4 py-2 rounded-lg ${view === 'manager' ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}>Manager</button>
-          <button onClick={() => setView('hr_admin')} className={`px-4 py-2 rounded-lg ${view === 'hr_admin' ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200'}`}>HR Admin</button>
-        </div>
-      </div>
+     {/* Only render buttons after role has been determined */}
+    {!isRoleLoading && userRole && (
+         <div className="flex space-x-2">
+    {/* Employee button is always visible */}
+    <button
+      onClick={() => setView('employee')}
+      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${view === 'employee' ? 'bg-primary-500 text-white shadow-md hover:bg-primary-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+    >
+      My View {/* Changed label */}
+    </button>
+
+    {/* Manager button: Only show if role is 'manager', 'admin', or 'hr' */}
+    {(userRole === 'manager' ) && (
+      <button
+        onClick={() => setView('manager')}
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${view === 'manager' ? 'bg-primary-500 text-white shadow-md hover:bg-primary-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+      >
+        Manager View {/* Changed label */}
+      </button>
+    )}
+
+    {/* HR Admin button: Only show if role is 'admin' or 'hr' */}
+    {(userRole === 'admin' || userRole === 'hr') && (
+      <button
+        onClick={() => setView('hr_admin')}
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${view === 'hr_admin' ? 'bg-primary-500 text-white shadow-md hover:bg-primary-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+      >
+        HR Admin View {/* Changed label */}
+      </button>
+    )}
+  </div>
+)}
+
       {view === 'employee' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -502,20 +619,39 @@ export default function LeavesPage() {
       {view === 'hr_admin' && (
         <>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2 card p-6 space-y-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Leave Policy Configuration</h2>
-              <div className="space-y-6">
-                {Object.entries(leavePolicyConfig).map(([type, policy], index) => (
-                  <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    {/* ... Policy display JSX is unchanged ... */}
-                  </div>
-                ))}
-                <button onClick={() => setIsNewPolicyModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">
-                  <Plus className="w-4 h-4" />
-                  <span>Create New Leave Type</span>
-                </button>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="lg:col-span-2 card p-6 space-y-4 flex flex-col"> {/* Added flex flex-col */}
+        
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex-shrink-0">Leave Policy Configuration</h2> {/* Added flex-shrink-0 */}
+
+        {/* --- ADD max-h-[...] and overflow-y-auto HERE --- */}
+        <div className="space-y-6 mt-4 flex-grow overflow-y-auto max-h-[500px]"> {/* Adjust max-h value as needed */}
+          {Object.entries(leavePolicyConfig).map(([type, policy], index) => (
+            <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+              <h3 className="font-medium text-gray-900 dark:text-white mb-2">{type.replace(/([A-Z])/g, ' $1').trim()}</h3>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Accrual:</span>
+                <span className="text-gray-800 dark:text-gray-200">{policy.accrual}</span>
+                <span className="text-gray-600 dark:text-gray-400">Carry Forward:</span>
+                <span className="text-gray-800 dark:text-gray-200">{policy.carryForward}</span>
+                <span className="text-gray-600 dark:text-gray-400">Encashment:</span>
+                <span className="text-gray-800 dark:text-gray-200">{policy.encashment}</span>
+                <span className="text-gray-600 dark:text-gray-400">Approval:</span>
+                <span className="text-gray-800 dark:text-gray-200">{policy.approvalWorkflow}</span>
               </div>
-            </motion.div>
+            </div>
+          ))}
+        </div>
+        {/* --- End of scrollable div --- */}
+
+        {/* Button moved outside the scrollable div for better layout */}
+        <div className="mt-6 flex-shrink-0"> {/* Added flex-shrink-0 */}
+          <button onClick={() => setIsNewPolicyModalOpen(true)} className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">
+            <Plus className="w-4 h-4" />
+            <span>Create New Leave Type</span>
+          </button>
+        </div>
+        
+      </motion.div>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="card p-6 space-y-4">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Holiday Calendar Management</h2>
@@ -535,26 +671,63 @@ export default function LeavesPage() {
             </motion.div>
           </div>
           
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6 space-y-4">
-            {/* ... Company-Wide Dashboard JSX is unchanged ... */}
-            <div className="mt-6 space-y-3">
-              <h3 className="font-medium text-gray-800 dark:text-gray-200">Manual Adjustments</h3>
-              <div className="flex space-x-2">
-                <input type="text" placeholder="Employee ID" value={manualAdjustmentForm.employeeId} onChange={(e) => setManualAdjustmentForm(prev => ({...prev, employeeId: e.target.value}))} className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-                <select value={manualAdjustmentForm.policyName} onChange={(e) => setManualAdjustmentForm(prev => ({...prev, policyName: e.target.value}))} className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
-                    <option value="">Select Leave Type</option>
-                    {Object.keys(leavePolicies).map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-                <input type="number" placeholder="Days" value={manualAdjustmentForm.days} onChange={(e) => setManualAdjustmentForm(prev => ({...prev, days: Number(e.target.value)}))} className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
-                <button onClick={() => handleManualAdjustment('credit')} className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center space-x-2">
-                  <UserPlus className="w-4 h-4" /> <span>Credit</span>
-                </button>
-                <button onClick={() => handleManualAdjustment('debit')} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center space-x-2">
-                  <UserMinus className="w-4 h-4" /> <span>Debit</span>
-                </button>
-              </div>
-            </div>
-          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6 space-y-4"> {/* Card already has theme */}
+  {/* ... Company-Wide Dashboard JSX is unchanged ... */}
+  
+  <div className="mt-6 space-y-3">
+    <h3 className="font-medium text-gray-800 dark:text-gray-200">Manual Adjustments</h3>
+    
+    {/* --- Apply theme to the container and inputs --- */}
+    <div className="flex flex-wrap items-center gap-2"> {/* Use flex-wrap and gap */}
+      
+      {/* Employee ID Input */}
+     <input 
+  type="email" 
+  placeholder="Employee Email" // <-- CHANGE THIS PLACEHOLDER
+  value={manualAdjustmentForm.employeeId} 
+  onChange={(e) => setManualAdjustmentForm(prev => ({...prev, employeeId: e.target.value}))} 
+  className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 flex-grow sm:flex-grow-0" 
+/>
+      
+      {/* Leave Type Select */}
+      <select 
+        value={manualAdjustmentForm.policyName} 
+        onChange={(e) => setManualAdjustmentForm(prev => ({...prev, policyName: e.target.value}))} 
+        className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 flex-grow sm:flex-grow-0" // Added theme, flex-grow for small screens
+      >
+        <option value="">Select Leave Type</option>
+        {Object.keys(leavePolicies).map(p => <option key={p} value={p}>{p}</option>)}
+      </select>
+      
+      {/* Days Input */}
+      <input 
+        type="number" 
+        placeholder="Days" 
+        value={manualAdjustmentForm.days} 
+        onChange={(e) => setManualAdjustmentForm(prev => ({...prev, days: Number(e.target.value)}))} 
+        className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-20" // Added theme, fixed width
+      />
+      
+      {/* Credit Button */}
+      <button 
+        onClick={() => handleManualAdjustment('credit')} 
+        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center space-x-2 transition-colors duration-150" // Added transition
+      >
+        <UserPlus className="w-4 h-4" /> <span>Credit</span>
+      </button>
+      
+      {/* Debit Button */}
+      <button 
+        onClick={() => handleManualAdjustment('debit')} 
+        className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg flex items-center space-x-2 transition-colors duration-150" // Added transition
+      >
+        <UserMinus className="w-4 h-4" /> <span>Debit</span>
+      </button>
+    </div>
+    {/* --- End of themed section --- */}
+    
+  </div>
+</motion.div>
 
           {/* ✅ ADDED: Modal for Adding a Holiday */}
           {isAddHolidayModalOpen && (
@@ -580,34 +753,100 @@ export default function LeavesPage() {
           )}
 
           {/* ✅ ADDED: Modal for Creating a New Leave Policy */}
-          {isNewPolicyModalOpen && (
-             <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex justify-center items-center">
-              <div className="relative p-8 border w-full max-w-md shadow-lg rounded-md bg-white dark:bg-gray-800">
-                <h3 className="text-xl font-bold mb-4">Create New Leave Type</h3>
-                <form onSubmit={handleNewPolicySubmit} className="space-y-4">
-                   <div>
-                        <label htmlFor="policyName" className="block text-sm font-medium">Policy Name</label>
-                        <input type="text" id="policyName" name="name" value={newPolicyForm.name} onChange={(e) => setNewPolicyForm(p => ({...p, name: e.target.value}))} required className="mt-1 block w-full p-2 border rounded-md" />
-                   </div>
-                   <div>
-                        <label htmlFor="totalDays" className="block text-sm font-medium">Total Days per Year</label>
-                        <input type="number" id="totalDays" name="totalDays" value={newPolicyForm.totalDays} onChange={(e) => setNewPolicyForm(p => ({...p, totalDays: Number(e.target.value)}))} required className="mt-1 block w-full p-2 border rounded-md" />
-                   </div>
-                   <div>
-                        <label htmlFor="description" className="block text-sm font-medium">Description</label>
-                        <textarea id="description" name="description" value={newPolicyForm.description} onChange={(e) => setNewPolicyForm(p => ({...p, description: e.target.value}))} className="mt-1 block w-full p-2 border rounded-md"></textarea>
-                   </div>
-                  <div className="flex justify-end space-x-2">
-                    <button type="button" onClick={() => setIsNewPolicyModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
-                    <button type="submit" className="px-4 py-2 bg-green-500 text-white rounded-lg">Create Policy</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
+     {isNewPolicyModalOpen && (
+    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex justify-center items-center overflow-y-auto p-4">
+      <div className="relative p-8 border w-full max-w-md shadow-lg rounded-md bg-white dark:bg-gray-800">
+        <h3 className="text-xl font-bold mb-4">Create New Leave Type</h3>
+        
+        <form onSubmit={handleNewPolicySubmit} className="space-y-4">
+          <div>
+            <label htmlFor="policyName" className="block text-sm font-medium">Policy Name</label>
+            <input 
+              type="text" 
+              id="policyName" 
+              name="name" 
+              value={newPolicyForm.name} 
+              onChange={(e) => setNewPolicyForm(p => ({...p, name: e.target.value}))} 
+              required 
+              className="mt-1 block w-full p-2 border rounded-md" />
+          </div>
+          <div>
+            <label htmlFor="totalDays" className="block text-sm font-medium">Total Days per Year</label>
+            <input 
+              type="number" 
+              id="totalDays" 
+              name="totalDays" 
+              value={newPolicyForm.totalDays} 
+              onChange={(e) => setNewPolicyForm(p => ({...p, totalDays: Number(e.target.value)}))} 
+              required 
+              className="mt-1 block w-full p-2 border rounded-md" />
+          </div>
+          <div>
+            <label htmlFor="description" className="block text-sm font-medium">Description</label>
+            <textarea 
+              id="description" 
+              name="description" 
+              value={newPolicyForm.description} 
+              onChange={(e) => setNewPolicyForm(p => ({...p, description: e.target.value}))} 
+              className="mt-1 block w-full p-2 border rounded-md"></textarea>
+          </div>
+
+          {/* --- ADD THESE NEW FIELDS --- */}
+
+          <div>
+            <label htmlFor="accrual_frequency" className="block text-sm font-medium">Accrual Frequency</label>
+            <select 
+              id="accrual_frequency" 
+              name="accrual_frequency" 
+              value={newPolicyForm.accrual_frequency} 
+              onChange={(e) => setNewPolicyForm(p => ({...p, accrual_frequency: e.target.value}))} 
+              className="mt-1 block w-full p-2 border rounded-md"
+            >
+              <option value="yearly">Yearly</option>
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="carry_forward_limit" className="block text-sm font-medium">Carry-forward Limit (days)</label>
+            <input 
+              type="number" 
+              id="carry_forward_limit" 
+              name="carry_forward_limit" 
+              value={newPolicyForm.carry_forward_limit} 
+              onChange={(e) => setNewPolicyForm(p => ({...p, carry_forward_limit: Number(e.target.value)}))} 
+              required 
+              className="mt-1 block w-full p-2 border rounded-md" 
+            />
+          </div>
+          
+          <div className="flex items-center">
+            <input 
+              type="checkbox" 
+              id="is_encashable" 
+              name="is_encashable" 
+              checked={newPolicyForm.is_encashable}
+              onChange={(e) => setNewPolicyForm(p => ({...p, is_encashable: e.target.checked}))}
+              className="h-4 w-4 text-primary-600 border-gray-300 rounded" 
+            />
+            <label htmlFor="is_encashable" className="ml-2 block text-sm font-medium">
+              Allow Encashment
+            </label>
+          </div>
+
+          {/* --- END OF NEW FIELDS --- */}
+
+          <div className="flex justify-end space-x-2">
+            <button type="button" onClick={() => setIsNewPolicyModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancel</button>
+            <button type="submit" className="px-4 py-2 bg-green-500 text-white rounded-lg">Create Policy</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )}
         </>
       )}
     </div>
   )
 }
-
