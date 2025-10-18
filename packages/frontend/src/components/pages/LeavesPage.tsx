@@ -73,10 +73,15 @@ export default function LeavesPage() {
   }, [view]);
 
   // --- Data Fetching Functions ---
-  const fetchEmployeeData = async () => {
+ const fetchEmployeeData = async () => {
     const token = localStorage.getItem('supabase-auth-token');
     if (!token) throw new Error('No authentication token found. Please log in.');
-    const res = await fetch(`${API_BASE_URL}/leaves/employee-view`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const res = await fetch(`${API_BASE_URL}/leaves/employee-view`, { 
+      headers: { 
+        'Authorization': `Bearer ${token}` 
+      },
+      cache: 'no-cache' // <-- ADD THIS
+    });
     if (!res.ok) throw new Error(`Failed to fetch employee data: ${res.statusText}`);
     const data = await res.json();
     setLeaveBalances(data.balances ?? []);
@@ -88,7 +93,12 @@ export default function LeavesPage() {
   const fetchManagerData = async () => {
     const token = localStorage.getItem('supabase-auth-token');
     if (!token) throw new Error('No authentication token found. Please log in.');
-    const res = await fetch(`${API_BASE_URL}/leaves/manager-view`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const res = await fetch(`${API_BASE_URL}/leaves/manager-view`, { 
+      headers: { 
+        'Authorization': `Bearer ${token}` 
+      },
+      cache: 'no-cache' // <-- ADD THIS
+    });
     if (!res.ok) throw new Error(`Failed to fetch manager data: ${res.statusText}`);
     const data = await res.json();
     setPendingApprovals(data.pendingApprovals ?? []);
@@ -99,7 +109,12 @@ export default function LeavesPage() {
   const fetchHrAdminData = async () => {
     const token = localStorage.getItem('supabase-auth-token');
     if (!token) throw new Error('No authentication token found. Please log in.');
-    const res = await fetch(`${API_BASE_URL}/leaves/hr-admin-view`, { headers: { 'Authorization': `Bearer ${token}` } });
+    const res = await fetch(`${API_BASE_URL}/leaves/hr-admin-view`, { 
+      headers: { 
+        'Authorization': `Bearer ${token}` 
+      },
+      cache: 'no-cache' // <-- ADD THIS
+    });
     if (!res.ok) throw new Error(`Failed to fetch HR admin data: ${res.statusText}`);
     const data = await res.json();
     setLeavePolicyConfig(data.leavePolicyConfig ?? {});
@@ -122,19 +137,36 @@ export default function LeavesPage() {
     }
   };
 
-  const handleApplyLeaveSubmit = async (e: FormEvent<HTMLFormElement>) => {
+ const handleApplyLeaveSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const token = localStorage.getItem('supabase-auth-token');
     if (!token) return console.error("No auth token found.");
 
-    const formData = new FormData();
-    Object.entries(leaveForm).forEach(([key, value]) => {
-      if (value) formData.append(key, value as string | Blob);
-    });
+    // --- REMOVED ---
+    // const formData = new FormData();
+    // Object.entries(leaveForm).forEach(([key, value]) => {
+    //   if (value) formData.append(key, value as string | Blob);
+    // });
 
     try {
-      const response = await fetch(`${API_BASE_URL}/leaves/apply`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }, body: formData });
-      if (!response.ok) throw new Error('Failed to submit leave application');
+      const response = await fetch(`${API_BASE_URL}/leaves/apply`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // --- ADD THIS HEADER ---
+          'Content-Type': 'application/json' 
+        },
+        // --- CHANGE THE BODY ---
+        body: JSON.stringify(leaveForm) // Send the form state directly as JSON
+      });
+
+      if (!response.ok) {
+        // Log the server's error message for better debugging
+        const errorData = await response.json();
+        console.error('Server error:', errorData.error || errorData.message || 'Failed to submit');
+        throw new Error('Failed to submit leave application');
+      }
+
       setIsApplyLeaveModalOpen(false);
       fetchEmployeeData();
     } catch (error) {

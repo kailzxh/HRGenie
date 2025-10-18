@@ -7,7 +7,10 @@ import {
     getManagerViewData, 
     getHrAdminViewData,
     applyForLeave,
-    handleLeaveAction
+    handleLeaveAction,
+     addHoliday,
+  createPolicy,
+  adjustBalance
 } from '../controllers/leaveController';
 
 const router = Router();
@@ -49,5 +52,27 @@ router.post('/apply', verifySupabaseToken, async (req: AuthRequest, res: Respons
 router.post('/action', verifySupabaseToken, authorize(['manager', 'hr']), async (req: AuthRequest, res: Response) => {
  await handleLeaveAction(req, res);
 });
+
+// ... (your existing routes)
+
+router.post('/action', verifySupabaseToken, authorize(['manager', 'hr']), async (req: AuthRequest, res: Response) => {
+  await handleLeaveAction(req, res);
+});
+
+// --- ADD THESE NEW ROUTES ---
+
+// Routes for HR Admin actions
+router.post('/hr/holidays', verifySupabaseToken, authorize(['admin', 'hr']), async (req: AuthRequest, res: Response) => {
+  await addHoliday(req, res);
+});
+
+router.post('/hr/policies', verifySupabaseToken, authorize(['admin', 'hr']), async (req: AuthRequest, res: Response) => {
+  await createPolicy(req, res);
+});
+
+router.post('/hr/adjust', verifySupabaseToken, authorize(['admin', 'hr']), async (req: AuthRequest, res: Response) => {
+  await adjustBalance(req, res);
+});
+// --- END OF NEW ROUTES ---
 
 export default router;
