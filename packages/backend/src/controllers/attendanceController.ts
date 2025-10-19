@@ -75,6 +75,25 @@ async function getInternalEmployeeId(authId: string): Promise<Employee> {
 // === CONTROLLER FUNCTIONS ===
 
 // ✅ GET Employee View
+
+// Helper function to get the current shift for an employee
+async function getEmployeeShift(employeeId: string, date: Date) {
+  const { data: employeeShift, error: shiftError } = await supabase
+    .from('employee_shifts')
+    .select('work_shifts(*)') // Use Supabase to join and get the full shift details
+    .eq('employee_id', employeeId)
+    .lte('effective_from', format(date, 'yyyy-MM-dd')) // Get the most recent shift that has started
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (shiftError || !employeeShift?.work_shifts) {
+    throw new Error('No active work shift found for this employee.');
+  }
+
+  return employeeShift.work_shifts;
+}
+
 export const getEmployeeView = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user?.id) throw new Error('User not authenticated.');
@@ -191,15 +210,7 @@ export const getManagerView = async (req: AuthenticatedRequest, res: Response): 
     if (reportError) throw reportError;
 
     if (!reports || reports.length === 0) {
-      res.json({
-        teamPresentToday: '0/0',
-        teamLateToday: 0,
-        pendingApprovalsCount: 0,
-        teamAverageAttendance: 'N/A',
-        teamMonthlyAttendanceSummary: [],
-        teamInsights: [],
-        pendingRegularizationApprovals: []
-      });
+      res.json({ teamPresentToday: '0/0', teamLateToday: 0, pendingApprovalsCount: 0, teamMonthlyAttendanceSummary: [], pendingRegularizationApprovals: [] });
       return;
     }
 
@@ -213,7 +224,7 @@ export const getManagerView = async (req: AuthenticatedRequest, res: Response): 
 
     const { data: teamAttendance, error: teamAttError } = await supabase
       .from('attendance_records')
-      .select('*')
+      .select('attendance_date, status')
       .in('employee_id', reportIds)
       .gte('attendance_date', startDate)
       .lte('attendance_date', endDate);
@@ -226,32 +237,53 @@ export const getManagerView = async (req: AuthenticatedRequest, res: Response): 
       .eq('status', 'pending');
     if (pendingError) throw pendingError;
 
+    // --- Data Aggregation for Calendar and Stats ---
     let presentTodayCount = 0;
     let lateTodayCount = 0;
+    const dailySummary = new Map<string, { presentCount: number; lateCount: number; absentCount: number; onLeaveCount: number }>();
+
     teamAttendance?.forEach((rec) => {
+      if (!dailySummary.has(rec.attendance_date)) {
+        dailySummary.set(rec.attendance_date, { presentCount: 0, lateCount: 0, absentCount: 0, onLeaveCount: 0 });
+      }
+      const day = dailySummary.get(rec.attendance_date)!;
+
       if (rec.attendance_date === todayStr) {
         if (rec.status.includes('Present') || rec.status.includes('Regularized')) presentTodayCount++;
-        if (rec.status === 'Late' || rec.status === 'Regularized - Late') lateTodayCount++;
+        if (rec.status === 'Late' || rec.status.includes('Late')) lateTodayCount++;
       }
+      
+      if (rec.status.includes('Present') || rec.status.includes('Regularized')) day.presentCount++;
+      if (rec.status === 'Late' || rec.status.includes('Late')) day.lateCount++;
+      if (rec.status === 'Absent') day.absentCount++;
+      if (rec.status === 'Leave') day.onLeaveCount++;
     });
+    
+    // Create the summary array for the calendar
+    const teamCalendarSummary = Array.from(dailySummary.entries()).map(([date, counts]) => ({
+      date,
+      ...counts
+    }));
 
     res.json({
       teamPresentToday: `${presentTodayCount}/${reports.length}`,
       teamLateToday: lateTodayCount,
       pendingApprovalsCount: pendingApprovals?.length ?? 0,
-      teamAverageAttendance: '92%',
+      teamAverageAttendance: '92%', // Placeholder
       teamInsights: [
         "Team's on-time arrival is stable.",
         `${lateTodayCount} team members were late today.`
       ],
+      // --- FIX: Add the new calendar data to the response ---
+      teamMonthlyAttendanceSummary: teamCalendarSummary, 
       pendingRegularizationApprovals: pendingApprovals?.map((req) => ({
         id: req.id,
         employeeId: req.employee_id,
         employeeName: reportMap.get(req.employee_id) || 'Unknown',
         date: req.request_date,
         reason: req.reason,
-        requestedClockIn: req.requested_clock_in ? format(parseISO(req.requested_clock_in), 'HH:mm') : null,
-        requestedClockOut: req.requested_clock_out ? format(parseISO(req.requested_clock_out), 'HH:mm') : null,
+        requested_clock_in: req.requested_clock_in ? format(parseISO(req.requested_clock_in), 'HH:mm') : null,
+        requested_clock_out: req.requested_clock_out ? format(parseISO(req.requested_clock_out), 'HH:mm') : null,
         status: req.status
       }))
     });
@@ -261,19 +293,126 @@ export const getManagerView = async (req: AuthenticatedRequest, res: Response): 
   }
 };
 
+
 // ✅ GET Admin/HR View
-export const getAdminView = async (_req: Request, res: Response): Promise<void> => {
-  res.json({
-    companyPresentToday: '450/500',
-    companyLateToday: 25,
-    totalPendingRequests: 30,
-    companyAverageAttendance: '90%',
-    systemAlerts: [
-      'Biometric device intermittent in Sector 5 office.',
-      'High number of regularization requests from Sales department this week.'
-    ]
-  });
+export const getAdminView = async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const today = new Date();
+    const startDate = format(startOfMonth(today), 'yyyy-MM-dd');
+    const endDate = format(endOfMonth(today), 'yyyy-MM-dd');
+    const todayStr = format(today, 'yyyy-MM-dd');
+
+    // --- Fetch All Necessary Data ---
+
+    // 1. Get all employees to get a total count
+    const { data: allEmployees, error: employeesError } = await supabase
+      .from('employees')
+      .select('id, name');
+    if (employeesError) throw employeesError;
+    const employeeMap = new Map(allEmployees.map(e => [e.id, e.name]));
+    const allEmployeeIds = allEmployees.map(e => e.id);
+
+    // 2. Get all attendance records for the month
+    const { data: allAttendance, error: attendanceError } = await supabase
+      .from('attendance_records')
+      .select('employee_id, attendance_date, status, hours_worked')
+      .in('employee_id', allEmployeeIds)
+      .gte('attendance_date', startDate)
+      .lte('attendance_date', endDate);
+    if (attendanceError) throw attendanceError;
+
+    // 3. Get all pending regularization requests
+    const { data: allPending, error: pendingError } = await supabase
+      .from('regularization_requests')
+      .select('*')
+      .in('employee_id', allEmployeeIds)
+      .eq('status', 'pending');
+    if (pendingError) throw pendingError;
+
+    // --- Process and Aggregate Data ---
+
+    let presentTodayCount = 0;
+    let lateTodayCount = 0;
+    let totalPresentDaysMonth = 0;
+    let totalLateDaysMonth = 0;
+    let totalHoursMonth = 0;
+
+    const dailySummary = new Map<string, { presentCount: number; lateCount: number; absentCount: number; onLeaveCount: number }>();
+
+    allAttendance.forEach(rec => {
+      // Initialize daily summary if it doesn't exist
+      if (!dailySummary.has(rec.attendance_date)) {
+        dailySummary.set(rec.attendance_date, { presentCount: 0, lateCount: 0, absentCount: 0, onLeaveCount: 0 });
+      }
+      const day = dailySummary.get(rec.attendance_date)!;
+
+      // Aggregate for today's stats
+      if (rec.attendance_date === todayStr) {
+        if (rec.status.includes('Present') || rec.status.includes('Regularized')) presentTodayCount++;
+        if (rec.status === 'Late' || rec.status === 'Regularized - Late') lateTodayCount++;
+      }
+      
+      // Aggregate for monthly summary
+      if (rec.status.includes('Present') || rec.status.includes('Regularized')) {
+        totalPresentDaysMonth++;
+        day.presentCount++;
+      }
+      if (rec.status === 'Late' || rec.status === 'Regularized - Late') {
+        totalLateDaysMonth++;
+        day.lateCount++;
+      }
+      if (rec.status === 'Absent') day.absentCount++;
+      if (rec.status === 'Leave') day.onLeaveCount++;
+      
+      if (rec.hours_worked) totalHoursMonth += parseFloat(rec.hours_worked);
+    });
+
+    const companyCalendarSummary = Array.from(dailySummary.entries()).map(([date, counts]) => ({
+      date,
+      ...counts
+    }));
+
+    const companyWideSummary = {
+      totalHoursMonth: totalHoursMonth.toFixed(2),
+      avgHoursDay: totalPresentDaysMonth > 0 ? (totalHoursMonth / totalPresentDaysMonth).toFixed(2) : '0.00',
+      lateDaysMonth: totalLateDaysMonth,
+      presentDays: totalPresentDaysMonth,
+      totalWorkDays: 22 // Static for now
+    };
+
+    res.json({
+      companyPresentToday: `${presentTodayCount}/${allEmployees.length}`,
+      companyLateToday: lateTodayCount,
+      totalPendingRequests: allPending?.length ?? 0,
+      companyAverageAttendance: totalPresentDaysMonth > 0 ? `${Math.round((totalPresentDaysMonth / (allEmployees.length * 22)) * 100)}%` : '0%',
+      systemAlerts: [ // These can be dynamic later
+        'Biometric device intermittent in Sector 5 office.',
+        'High number of regularization requests from Sales department this week.'
+      ],
+      // --- Add the missing data fields ---
+      companyWideAttendanceSummary: companyWideSummary,
+      companyAttendanceSummary: companyCalendarSummary,
+      allPendingRegularizations: allPending?.map(req => ({
+        // Explicitly map fields to create a consistent object structure
+        id: req.id,
+        employeeId: req.employee_id,
+        employeeName: employeeMap.get(req.employee_id) || 'Unknown Employee',
+        date: req.request_date, // FIX: Map 'request_date' to 'date'
+        reason: req.reason,
+        status: req.status,
+        // Proactively format times to match what the frontend expects
+        requested_clock_in: req.requested_clock_in ? format(parseISO(req.requested_clock_in), 'HH:mm') : null,
+        requested_clock_out: req.requested_clock_out ? format(parseISO(req.requested_clock_out), 'HH:mm') : null,
+        comments: req.comments
+      })) || []
+    });
+  } catch (error: any) {
+    console.error('Error in getAdminView:', error.message);
+    res.status(500).json({ message: 'Error fetching admin data', error: error.message });
+  }
 };
+
+
 
 // ✅ POST Clock In
 export const clockIn = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -287,6 +426,17 @@ export const clockIn = async (req: AuthenticatedRequest, res: Response): Promise
     const clockInTime = now.toISOString();
     const { location } = req.body as { location?: string };
 
+    // 1. Get the employee's shift for today
+    const shift: any = await getEmployeeShift(employeeId, now); // Cast to any to access start_time
+
+    // 2. Determine status based on shift start time and grace period
+    const shiftStartTime = parseISO(`${todayStr}T${shift.start_time}`);
+    const gracePeriodMs = (shift.grace_period_minutes || 0) * 60 * 1000;
+    const allowedClockInTime = shiftStartTime.getTime() + gracePeriodMs;
+    
+    const status = now.getTime() > allowedClockInTime ? 'Late' : 'Present';
+
+    // 3. Upsert the record with the correct status
     const { data, error } = await supabase
       .from('attendance_records')
       .upsert(
@@ -295,7 +445,7 @@ export const clockIn = async (req: AuthenticatedRequest, res: Response): Promise
           attendance_date: todayStr,
           clock_in_time: clockInTime,
           work_location: location || 'Office',
-          status: 'Present'
+          status: status // Use the calculated status
         },
         { onConflict: 'employee_id, attendance_date' }
       )
@@ -311,6 +461,7 @@ export const clockIn = async (req: AuthenticatedRequest, res: Response): Promise
 };
 
 // ✅ POST Clock Out
+// ✅ POST Clock Out (Corrected)
 export const clockOut = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     if (!req.user?.id) throw new Error('User not authenticated.');
@@ -325,16 +476,23 @@ export const clockOut = async (req: AuthenticatedRequest, res: Response): Promis
       .eq('employee_id', employeeId)
       .eq('attendance_date', todayStr)
       .single();
-    if (error || !record) throw new Error('No clock-in record found for today.');
+    if (error || !record || !record.clock_in_time) {
+      throw new Error('No clock-in record found for today.');
+    }
 
     const clockIn = parseISO(record.clock_in_time);
-    const hoursWorked = differenceInHours(now, clockIn);
+    
+    // --- This is the fix ---
+    // Calculate difference in milliseconds, then convert to hours
+    const millisecondsWorked = now.getTime() - clockIn.getTime();
+    const hoursWorked = millisecondsWorked / (1000 * 60 * 60); // (ms -> s -> min -> hr)
+    // --- End of fix ---
 
     const { data: updated, error: updateError } = await supabase
       .from('attendance_records')
       .update({
         clock_out_time: now.toISOString(),
-        hours_worked: hoursWorked.toFixed(2)
+        hours_worked: hoursWorked.toFixed(2) // Save as a precise decimal string
       })
       .eq('id', record.id)
       .select()

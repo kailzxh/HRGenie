@@ -5,7 +5,7 @@ import {
   Calendar, Plus, Clock, CheckCircle, XCircle, AlertTriangle, Users,
   Settings, TrendingUp, UserPlus, UserMinus, LucideProps, MapPin
 } from 'lucide-react'
-import { useState, useEffect, FC, ReactNode } from 'react' // Removed unused types
+import { useState, useEffect, FC, ReactNode, useMemo } from 'react' // Removed unused types
 import { format, parseISO, isSameDay } from 'date-fns' // Import date-fns functions used
 
 // --- 1. Import Defined Types ---
@@ -22,7 +22,7 @@ import type {
 import {AttendanceSummaryWidget} from '../widgets/AttendanceSummaryWidget'
 import {AttendanceCalendar} from '@/components/widgets/AttendanceCalendar'
 import {RegularizationForm} from '../widgets/RegularizationForm'
-import RegularizationHistory from '../widgets/RegularizationHistory'
+import {RegularizationHistory} from '../widgets/RegularizationHistory'
 
 // --- API Base URL ---
 const API_BASE_URL = 'http://localhost:5000/api';
@@ -131,14 +131,14 @@ export default function AttendancePage() {
          } else if (view === 'admin' && (userRole === 'admin' || userRole === 'hr')) {
             await fetchAdminAttendanceData();
          } else if (view !== 'employee' && userRole === 'employee') { // Explicitly handle employee trying invalid view
-             console.warn(`Role 'employee' cannot access '${view}'. Defaulting.`);
-             setView('employee'); // Will trigger refetch for employee view
-             return; // Exit early
+            console.warn(`Role 'employee' cannot access '${view}'. Defaulting.`);
+            setView('employee'); // Will trigger refetch for employee view
+            return; // Exit early
          } else {
-             // Handle other potential invalid state combinations if necessary
-             console.warn(`Unexpected state: Role '${userRole}', View '${view}'. Defaulting.`);
-             setView('employee');
-             return;
+            // Handle other potential invalid state combinations if necessary
+            console.warn(`Unexpected state: Role '${userRole}', View '${view}'. Defaulting.`);
+            setView('employee');
+            return;
          }
        } catch (error) {
          console.error(`Failed to fetch data for ${view} view:`, error);
@@ -157,92 +157,103 @@ export default function AttendancePage() {
 
  // --- Action Handler Functions ---
  const handleClockInOut = async () => {
-     const todayStr = format(new Date(), 'yyyy-MM-dd');
-     const todaysRecord = employeeData?.monthlyAttendance?.find((d) => d.date === todayStr);
-     // Check if clocked in but not clocked out
-     const isClockedIn = todaysRecord && todaysRecord.clockIn && !todaysRecord.clockOut;
-     const endpoint = isClockedIn ? 'clock-out' : 'clock-in';
-     console.log(`Attempting to ${endpoint}...`);
-     const token = localStorage.getItem('supabase-auth-token');
-     if (!token) return console.error("No auth token");
-     try {
-       let locationData = {};
-       if(endpoint === 'clock-in') {
-         // You might want a better way to get location (e.g., GPS, dropdown)
-         const location = prompt("Enter work location (e.g., Office, Home):", "Office");
-         if (!location) return; // User cancelled prompt
-         locationData = { location };
+   const todayStr = format(new Date(), 'yyyy-MM-dd');
+   
+   // Your backend 'monthlyAttendance' array uses 'attendance_date'
+   const todaysRecord = employeeData?.monthlyAttendance?.find((d) => d.attendance_date === todayStr);
+
+   // Check for the correct backend field names
+   const isClockedIn = todaysRecord && todaysRecord.clock_in_time && !todaysRecord.clock_out_time;
+   
+   const endpoint = isClockedIn ? 'clock-out' : 'clock-in';
+   console.log(`Attempting to ${endpoint}...`);
+   const token = localStorage.getItem('supabase-auth-token');
+   if (!token) return console.error("No auth token");
+   try {
+     let locationData = {};
+     if(endpoint === 'clock-in') {
+       // You might want a better way to get location (e.g., GPS, dropdown)
+       const location = prompt("Enter work location (e.g., Office, Home):", "Office");
+       if (!location) return; // User cancelled prompt
+       locationData = { location };
+     }
+     const res = await fetch(`${API_BASE_URL}/attendance/${endpoint}`, {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+       body: endpoint === 'clock-in' ? JSON.stringify(locationData) : undefined
+     });
+     const result = await res.json();
+     if (!res.ok) throw new Error(result.message || `Failed to ${endpoint}`);
+     alert(`Successfully ${endpoint}!`);
+     await fetchEmployeeAttendanceData(); // Refresh data immediately
+   } catch (error: any) {
+     console.error(`Failed to ${endpoint}:`, error);
+     alert(`Error: ${error.message}`);
+   }
+ };
+
+  // Type the formData explicitly based on RegularizationForm's expected output
+  const handleRegularizationSubmit = async (formData: {
+    date: Date;
+    reason: string;
+    checkInTime?: string;
+    checkOutTime?: string;
+    requestedStatus?: string;
+  }) => {
+    console.log('Submitting regularization:', formData);
+    const token = localStorage.getItem('supabase-auth-token');
+    if (!token) return console.error("No auth token");
+    try {
+      const res = await fetch(`${API_BASE_URL}/attendance/regularize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          date: format(formData.date, 'yyyy-MM-dd'), // Format date for backend
+          reason: formData.reason,
+          requestedClockIn: formData.checkInTime || null, // Backend expects HH:mm or null
+          requestedClockOut: formData.checkOutTime || null,
+          requestedStatus: formData.requestedStatus || null,
+        })
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.message || 'Failed to submit request');
+      alert('Regularization request submitted successfully!');
+      setShowRegularizeForm(false);
+      await fetchEmployeeAttendanceData(); // Refresh employee data after submission
+    } catch (error: any) {
+      console.error('Failed to submit regularization:', error);
+      alert(`Error: ${error.message}`);
+    }
+  };
+
+   const handleRegularizationApproval = async (requestId: string | number, newStatus: 'approved' | 'rejected') => {
+       // Optional: Prompt for comments only when rejecting
+       let comments: string | undefined = undefined;
+       if (newStatus === 'rejected') {
+           comments = prompt("Optional: Provide a reason for rejection:") || undefined;
+           // If user cancels prompt, comments will be undefined, which is fine
        }
-       const res = await fetch(`${API_BASE_URL}/attendance/${endpoint}`, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-         body: endpoint === 'clock-in' ? JSON.stringify(locationData) : undefined
-       });
-       const result = await res.json();
-       if (!res.ok) throw new Error(result.message || `Failed to ${endpoint}`);
-       alert(`Successfully ${endpoint}!`);
-       await fetchEmployeeAttendanceData(); // Refresh data immediately
-     } catch (error: any) {
-       console.error(`Failed to ${endpoint}:`, error);
-       alert(`Error: ${error.message}`);
-     }
-   };
 
-   // Type the formData explicitly based on RegularizationForm's expected output
-   const handleRegularizationSubmit = async (formData: { date: Date; reason: string; checkInTime?: string; checkOutTime?: string }) => {
-     console.log('Submitting regularization:', formData);
-     const token = localStorage.getItem('supabase-auth-token');
-     if (!token) return console.error("No auth token");
-     try {
-       const res = await fetch(`${API_BASE_URL}/attendance/regularize`, {
-         method: 'POST',
-         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-         body: JSON.stringify({
-           date: format(formData.date, 'yyyy-MM-dd'), // Format date for backend
-           reason: formData.reason,
-           requestedClockIn: formData.checkInTime || null, // Backend expects HH:mm or null
-           requestedClockOut: formData.checkOutTime || null,
-         })
-       });
-       const result = await res.json();
-       if (!res.ok) throw new Error(result.message || 'Failed to submit request');
-       alert('Regularization request submitted successfully!');
-       setShowRegularizeForm(false);
-       await fetchEmployeeAttendanceData(); // Refresh employee data after submission
-     } catch (error: any) {
-       console.error('Failed to submit regularization:', error);
-       alert(`Error: ${error.message}`);
-     }
-   };
-
-    const handleRegularizationApproval = async (requestId: string | number, newStatus: 'approved' | 'rejected') => {
-        // Optional: Prompt for comments only when rejecting
-        let comments: string | undefined = undefined;
-        if (newStatus === 'rejected') {
-            comments = prompt("Optional: Provide a reason for rejection:") || undefined;
-            // If user cancels prompt, comments will be undefined, which is fine
+        console.log(`Processing request ${requestId} with status ${newStatus}`);
+        const token = localStorage.getItem('supabase-auth-token');
+        if (!token) return console.error("No auth token");
+        try {
+          const res = await fetch(`${API_BASE_URL}/attendance/regularize/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ requestId, status: newStatus, comments }) // Send comments or undefined
+          });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.message || 'Failed to process request');
+          alert(`Request ${newStatus} successfully!`);
+          // Refresh data for the current view
+          if (view === 'manager') await fetchManagerAttendanceData();
+          if (view === 'admin') await fetchAdminAttendanceData();
+        } catch (error: any) {
+          console.error('Failed to process regularization:', error);
+          alert(`Error: ${error.message}`);
         }
-
-         console.log(`Processing request ${requestId} with status ${newStatus}`);
-         const token = localStorage.getItem('supabase-auth-token');
-         if (!token) return console.error("No auth token");
-         try {
-           const res = await fetch(`${API_BASE_URL}/attendance/regularize/action`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-             body: JSON.stringify({ requestId, status: newStatus, comments }) // Send comments or undefined
-           });
-           const result = await res.json();
-           if (!res.ok) throw new Error(result.message || 'Failed to process request');
-           alert(`Request ${newStatus} successfully!`);
-           // Refresh data for the current view
-           if (view === 'manager') await fetchManagerAttendanceData();
-           if (view === 'admin') await fetchAdminAttendanceData();
-         } catch (error: any) {
-           console.error('Failed to process regularization:', error);
-           alert(`Error: ${error.message}`);
-         }
-    };
+   };
 
   // Opens the regularization form modal
   const handleRegularize = (date: Date) => {
@@ -250,45 +261,82 @@ export default function AttendancePage() {
     setShowRegularizeForm(true)
   }
 
+ // --- Determine Data for Current View (Safely) ---
+ const attendanceSummary: AttendanceSummaryData | null = useMemo(() => {
+    if (view === 'employee') return employeeData?.attendanceSummary || null;
+    if (view === 'manager') return managerData?.teamAttendanceSummary || null;
+    if (view === 'admin') return adminData?.companyWideAttendanceSummary || null;
+    return null;
+ }, [view, employeeData, managerData, adminData]);
+
+ const calendarData = useMemo(() => {
+    if (view === 'employee' && employeeData?.monthlyAttendance) {
+        // Map backend's snake_case to the camelCase props the calendar expects
+        return employeeData.monthlyAttendance.map(record => {
+            // Cast record to 'any' to bypass incorrect type inference from a generic type.
+            // This allows us to access the raw snake_case properties from the backend API.
+            const rawRecord = record as any;
+            return {
+                date: rawRecord.attendance_date,
+                status: rawRecord.status,
+                clockIn: rawRecord.clock_in_time,
+                clockOut: rawRecord.clock_out_time,
+            };
+        });
+    }
+    if (view === 'manager' && managerData?.teamMonthlyAttendanceSummary) {
+        return managerData.teamMonthlyAttendanceSummary;
+    }
+    if (view === 'admin' && adminData?.companyAttendanceSummary) {
+        return adminData.companyAttendanceSummary;
+    }
+    
+
+
+    // Add admin view mapping if needed
+    return [];
+ }, [view, employeeData, managerData, adminData]);
+
+ const regularizationHistory: RegularizationRequest[] =
+    employeeData?.regularizationHistory || [];
+
+ const pendingApprovals: RegularizationRequest[] =
+    view === 'manager' ? (managerData?.pendingRegularizationApprovals || []) :
+    view === 'admin' ? (adminData?.allPendingRegularizations || []) : [];
+
+ const insights: string[] = view === 'manager' ? (managerData?.teamInsights || []) : [];
+ const alerts: string[] = view === 'admin' ? (adminData?.systemAlerts || []) : [];
+
+ // Determine Clock In/Out button text dynamically
+ const { clockInOutText } = useMemo(() => {
+    if (view !== 'employee' || !employeeData?.monthlyAttendance) {
+        return { clockInOutText: 'Clock In' };
+    }
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    // Find today's record from the raw backend data using the correct field name
+    const todaysRecord = employeeData.monthlyAttendance.find((d: any) => d.attendance_date === todayStr);
+
+    // Check the correct backend field names: clock_in_time and clock_out_time
+    const isClockedIn = !!(todaysRecord && todaysRecord.clock_in_time && !todaysRecord.clock_out_time);
+
+    return {
+        clockInOutText: isClockedIn ? 'Clock Out' : 'Clock In',
+    };
+ }, [employeeData, view]);
+
+ const hours = parseFloat(employeeData?.todaysHours as unknown as string);
+ const hoursDisplay = !isNaN(hours) ? hours.toFixed(1) : '0.0';
+
   // --- Loading Check ---
   if (isRoleLoading || isLoading) {
     // Basic loading indicator
     return (
         <div className="flex justify-center items-center h-[50vh]"> {/* Centered */}
-             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-             <p className="ml-3 text-gray-600 dark:text-gray-400">Loading Attendance...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+            <p className="ml-3 text-gray-600 dark:text-gray-400">Loading Attendance...</p>
         </div>
     );
   }
-
-  // --- Determine Data for Current View (Safely) ---
-  // Provides default empty structures if data hasn't loaded yet for a view
-  const currentSummaryData: AttendanceSummaryData | null =
-    view === 'employee' ? (employeeData?.attendanceSummary || null) :
-    view === 'manager' ? (managerData?.teamAttendanceSummary || null) :
-    (adminData?.companyWideAttendanceSummary || null);
-
-  const currentCalendarData: AttendanceDayStatus[] | ManagerAttendanceViewData['teamMonthlyAttendanceSummary'] | AdminAttendanceViewData['companyAttendanceSummary'] =
-    view === 'employee' ? (employeeData?.monthlyAttendance || []) :
-    view === 'manager' ? (managerData?.teamMonthlyAttendanceSummary || []) :
-    (adminData?.companyAttendanceSummary || []);
-
-  const currentRegularizationHistory: RegularizationRequest[] =
-    view === 'employee' ? (employeeData?.regularizationHistory || []) : [];
-
-  const currentPendingApprovals: RegularizationRequest[] =
-    view === 'manager' ? (managerData?.pendingRegularizationApprovals || []) :
-    view === 'admin' ? (adminData?.allPendingRegularizations || []) : []; // Admin might see all
-
-  const currentInsights: string[] = view === 'manager' ? (managerData?.teamInsights || []) : [];
-  const currentAlerts: string[] = view === 'admin' ? (adminData?.systemAlerts || []) : [];
-
-  // Determine Clock In/Out button text dynamically
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
-  const todaysRecord = employeeData?.monthlyAttendance?.find((d) => d.date === todayStr);
-  const isClockedIn = todaysRecord && todaysRecord.clockIn && !todaysRecord.clockOut;
-  const clockInOutText = isClockedIn ? 'Clock Out' : 'Clock In';
-
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -304,7 +352,7 @@ export default function AttendancePage() {
         </div>
         {/* --- View Switching Buttons --- */}
         {!isRoleLoading && userRole && (
-             <div className="flex items-center space-x-2 sm:space-x-4 w-full sm:w-auto justify-end">
+            <div className="flex items-center space-x-2 sm:space-x-4 w-full sm:w-auto justify-end">
                <div className="flex space-x-1 sm:space-x-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-lg shadow-sm">
                    {/* My View Button (Always shown if role is loaded) */}
                    <button onClick={() => setView('employee')} className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors duration-150 ${view === 'employee' ? 'bg-white dark:bg-gray-900 text-primary-600 dark:text-primary-400 shadow' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}>My View</button>
@@ -322,7 +370,7 @@ export default function AttendancePage() {
                        <Clock className="w-4 h-4" /> <span>{clockInOutText}</span>
                    </button>
                )}
-             </div>
+            </div>
         )}
       </div>
 
@@ -331,25 +379,26 @@ export default function AttendancePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
         {view === 'employee' && employeeData ? (
           <>
-            <StatCard icon={CheckCircle} color="green" label="Present Days" value={employeeData.presentDays ?? 0} />
-            <StatCard icon={Clock} color="blue" label="Today's Hours" value={employeeData.todaysHours?.toFixed(1) ?? '0.0'} />
+           <StatCard icon={CheckCircle} color="green" label="Present Days" value={employeeData.presentDays ?? 0} />
+            {/* Use the new variable here */}
+            <StatCard icon={Clock} color="blue" label="Today's Hours" value={hoursDisplay} />
             <StatCard icon={AlertTriangle} color="yellow" label="Pending Reg." value={employeeData.pendingRegularizationsCount ?? 0} />
             <StatCard icon={MapPin} color="purple" label="Location" value={employeeData.currentWorkLocation ?? 'N/A'} isSmallText />
           </>
         ) : view === 'manager' && managerData ? (
           <>
-            <StatCard icon={Users} color="green" label="Team Present" value={managerData.teamPresentToday ?? '0/0'} isSmallText />
-            <StatCard icon={Clock} color="yellow" label="Team Late" value={managerData.teamLateToday ?? 0} />
-            <StatCard icon={AlertTriangle} color="blue" label="Pending Req." value={managerData.pendingApprovalsCount ?? 0} />
-            <StatCard icon={TrendingUp} color="purple" label="Team Avg." value={managerData.teamAverageAttendance ?? 'N/A'} isSmallText />
+             <StatCard icon={Users} color="green" label="Team Present" value={managerData.teamPresentToday ?? '0/0'} isSmallText />
+             <StatCard icon={Clock} color="yellow" label="Team Late" value={managerData.teamLateToday ?? 0} />
+             <StatCard icon={AlertTriangle} color="blue" label="Pending Req." value={managerData.pendingApprovalsCount ?? 0} />
+             <StatCard icon={TrendingUp} color="purple" label="Team Avg." value={managerData.teamAverageAttendance ?? 'N/A'} isSmallText />
           </>
         ) : view === 'admin' && adminData ? (
            <>
-            <StatCard icon={Users} color="green" label="Co. Present" value={adminData.companyPresentToday ?? '0/0'} isSmallText />
-            <StatCard icon={Clock} color="yellow" label="Co. Late" value={adminData.companyLateToday ?? 0} />
-            <StatCard icon={AlertTriangle} color="blue" label="Pending Req." value={adminData.totalPendingRequests ?? 0} />
-            <StatCard icon={TrendingUp} color="purple" label="Co. Avg." value={adminData.companyAverageAttendance ?? 'N/A'} isSmallText />
-          </>
+             <StatCard icon={Users} color="green" label="Co. Present" value={adminData.companyPresentToday ?? '0/0'} isSmallText />
+             <StatCard icon={Clock} color="yellow" label="Co. Late" value={adminData.companyLateToday ?? 0} />
+             <StatCard icon={AlertTriangle} color="blue" label="Pending Req." value={adminData.totalPendingRequests ?? 0} />
+             <StatCard icon={TrendingUp} color="purple" label="Co. Avg." value={adminData.companyAverageAttendance ?? 'N/A'} isSmallText />
+           </>
         ) : (
           // Only show skeletons if not loading role, but data isn't ready
           !isRoleLoading && [...Array(4)].map((_, i) => <div key={i} className="card p-6 h-24 bg-gray-100 dark:bg-gray-700 animate-pulse rounded-xl shadow-sm"></div>)
@@ -364,19 +413,19 @@ export default function AttendancePage() {
                onRegularize={handleRegularize}
                view={view}
                // Pass data, ensure it's always an array
-               attendanceData={Array.isArray(currentCalendarData) ? currentCalendarData : []}
+               attendanceData={calendarData}
             />
 
             {/* Regularization History (Only Employee View) */}
-            {view === 'employee' && <RegularizationHistory requests={currentRegularizationHistory} />}
+            {view === 'employee' && <RegularizationHistory requests={regularizationHistory} />}
 
             {/* Manager Insights */}
             {view === 'manager' && (
              <div className="card p-6 rounded-xl shadow-sm">
                <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Team Insights</h2>
                <div className="space-y-3">
-                  {(currentInsights && currentInsights.length > 0) ? (
-                      currentInsights.map((insight, index) => (
+                  {(insights && insights.length > 0) ? (
+                      insights.map((insight, index) => (
                           <div key={index} className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-start space-x-2 border border-blue-100 dark:border-blue-900">
                               <AlertTriangle className="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0"/>
                               <p className="text-blue-700 dark:text-blue-300 text-sm">{insight}</p>
@@ -385,29 +434,14 @@ export default function AttendancePage() {
                   ) : ( <p className="text-gray-500 dark:text-gray-400 text-sm italic">No insights available for your team this period.</p> )}
                </div>
              </div>
-           )}
+            )}
 
-           {/* Admin Alerts */}
-           {view === 'admin' && (
-             <div className="card p-6 rounded-xl shadow-sm">
-               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">System Alerts</h2>
-                <div className="space-y-3">
-                  {(currentAlerts && currentAlerts.length > 0) ? (
-                      currentAlerts.map((alert, index) => (
-                           <div key={index} className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg flex items-start space-x-2 border border-red-100 dark:border-red-900">
-                               <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0"/>
-                               <p className="text-red-700 dark:text-red-300 text-sm">{alert}</p>
-                           </div>
-                      ))
-                  ) : ( <p className="text-gray-500 dark:text-gray-400 text-sm italic">No active system alerts.</p> )}
-               </div>
-             </div>
-           )}
+          
         </div>
 
         {/* Right Column */}
         <div className="space-y-6">
-            <AttendanceSummaryWidget summary={currentSummaryData || null} />
+            <AttendanceSummaryWidget summary={attendanceSummary} />
 
             {/* Regularization Form Modal Triggered by State */}
             {showRegularizeForm && selectedDate && (
@@ -427,36 +461,36 @@ export default function AttendancePage() {
             {/* Manager Pending Approvals */}
             {(view === 'manager' || view === 'admin') && ( // Show for Admin too if they handle approvals
                <div className="card p-6 rounded-xl shadow-sm">
-                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pending Approvals ({currentPendingApprovals?.length || 0})</h2>
+                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Pending Approvals ({pendingApprovals?.length || 0})</h2>
                   <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar"> {/* Added scroll and custom class */}
-                    {(currentPendingApprovals && currentPendingApprovals.length > 0) ? (
-                       currentPendingApprovals.map((request) => (
+                    {(pendingApprovals && pendingApprovals.length > 0) ? (
+                       pendingApprovals.map((request) => (
                           <div key={request.id} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-shadow">
                              <div className="flex justify-between items-start gap-2">
                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm text-gray-800 dark:text-white truncate">{request.employeeName}</p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                     {format(parseISO(request.date), 'MMM d, yyyy')}
-                                  </p>
-                                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 line-clamp-2" title={request.reason}> {/* Add title for full reason */}
-                                      {request.reason}
-                                  </p>
-                                  <div className="text-xs text-gray-500 mt-1 space-x-2">
-                                     {request.requested_clock_in && <span>In: {request.requested_clock_in as string}</span>}
-                                     {request.requested_clock_out && <span>Out: {request.requested_clock_out as string}</span>}
-                                  </div>
+                                   <p className="font-medium text-sm text-gray-800 dark:text-white truncate">{request.employeeName}</p>
+                                   <p className="text-xs text-gray-500 dark:text-gray-400">
+                                       {format(parseISO(request.date), 'MMM d, yyyy')}
+                                   </p>
+                                   <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 line-clamp-2" title={request.reason}> {/* Add title for full   reason */}
+                                       {request.reason || 'No reason provided'}
+                                   </p>
+                                   <div className="text-xs text-gray-500 mt-1 space-x-2">
+                                       {request.requested_clock_in && <span>In: {request.requested_clock_in as string}</span>}
+                                       {request.requested_clock_out && <span>Out: {request.requested_clock_out as string}</span>}
+                                   </div>
                                </div>
                                <div className="flex flex-col space-y-1.5 flex-shrink-0">
-                                  <button
-                                     onClick={() => handleRegularizationApproval(request.id, 'approved')}
-                                     className="px-2.5 py-1 bg-green-500 text-white rounded text-xs font-semibold hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 transition-colors"
-                                     aria-label={`Approve request for ${request.employeeName} on ${format(parseISO(request.date), 'MMM d')}`}
-                                  >Approve</button>
-                                  <button
-                                      onClick={() => handleRegularizationApproval(request.id, 'rejected')}
-                                      className="px-2.5 py-1 bg-red-500 text-white rounded text-xs font-semibold hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50 transition-colors"
-                                       aria-label={`Reject request for ${request.employeeName} on ${format(parseISO(request.date), 'MMM d')}`}
-                                  >Reject</button>
+                                   <button
+                                       onClick={() => handleRegularizationApproval(request.id, 'approved')}
+                                       className="px-2.5 py-1 bg-green-500 text-white rounded text-xs font-semibold hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 transition-colors"
+                                       aria-label={`Approve request for ${request.employeeName} on ${format(parseISO(request.date), 'MMM d')}`}
+                                   >Approve</button>
+                                   <button
+                                       onClick={() => handleRegularizationApproval(request.id, 'rejected')}
+                                       className="px-2.5 py-1 bg-red-500 text-white rounded text-xs font-semibold hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50 transition-colors"
+                                        aria-label={`Reject request for ${request.employeeName} on ${format(parseISO(request.date), 'MMM d')}`}
+                                   >Reject</button>
                                </div>
                              </div>
                           </div>
@@ -464,20 +498,9 @@ export default function AttendancePage() {
                     ) : ( <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4 italic">No pending approvals.</p> )}
                  </div>
                </div>
-             )}
+              )}
 
-             {/* Admin Quick Settings (Static UI) */}
-             {view === 'admin' && (
-                <div className="card p-6 rounded-xl shadow-sm">
-                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Settings</h2>
-                   <div className="space-y-4">
-                      {/* Placeholder Toggle Buttons - Needs state/handlers */}
-                      <div className="flex items-center justify-between"><span className="text-sm text-gray-700 dark:text-gray-300">Auto-approve</span><button aria-label="Toggle auto-approve" className="w-10 h-6 bg-gray-200 dark:bg-gray-600 rounded-full relative p-1 transition-colors"><div className="w-4 h-4 bg-white rounded-full absolute left-1 top-1 transition-transform"></div></button></div>
-                      <div className="flex items-center justify-between"><span className="text-sm text-gray-700 dark:text-gray-300">Geo-fencing</span><button aria-label="Toggle geo-fencing" className="w-10 h-6 bg-primary-500 rounded-full relative p-1 transition-colors"><div className="w-4 h-4 bg-white rounded-full absolute right-1 top-1 transition-transform"></div></button></div>
-                      <div className="flex items-center justify-between"><span className="text-sm text-gray-700 dark:text-gray-300">Anomaly detection</span><button aria-label="Toggle anomaly detection" className="w-10 h-6 bg-primary-500 rounded-full relative p-1 transition-colors"><div className="w-4 h-4 bg-white rounded-full absolute right-1 top-1 transition-transform"></div></button></div>
- </div>
-                </div>
-             )}
+              
         </div>
      </div>
     </div>
@@ -526,3 +549,4 @@ const StatCard: FC<StatCardProps> = ({ icon: Icon, color, label, value, isSmallT
         </motion.div>
     );
 };
+

@@ -1,59 +1,48 @@
 'use client'
 
-import { useState, FC } from 'react' // Import FC
+import { useState, FC } from 'react'
 import { X } from 'lucide-react'
-import { format } from 'date-fns' // Import format
+import { format } from 'date-fns'
 
-// Define the structure of data submitted by the form
+// This interface now matches the data your parent's handler needs
 interface RegularizationFormData {
-  date: Date; // The original Date object passed in
-  checkInTime: string; // HH:mm format
-  checkOutTime: string; // HH:mm format
+  date: Date;
+  checkInTime: string;
+  checkOutTime: string;
   reason: string;
+  requestedStatus: string; // <-- This field was missing
 }
 
 interface RegularizationFormProps {
   date: Date;
   onClose: () => void;
-  // Update onSubmit prop type
   onSubmit: (data: RegularizationFormData) => void;
 }
 
-
 export const RegularizationForm: FC<RegularizationFormProps> = ({ date, onClose, onSubmit }) => {
-  // Use field names matching the onSubmit type
-  const [formData, setFormData] = useState({
-    date: date, // Keep original date object
-    checkInTime: '', // HH:mm string
-    checkOutTime: '', // HH:mm string
-    reason: ''
-  })
+  const [checkInTime, setCheckInTime] = useState('');
+  const [checkOutTime, setCheckOutTime] = useState('');
+  const [reason, setReason] = useState('');
+  const [requestedStatus, setRequestedStatus] = useState(''); // <-- State for the new field
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    // Ensure times are provided if needed by your logic (basic validation)
-    if (!formData.checkInTime && !formData.checkOutTime) {
-        alert("Please provide at least one corrected time (Check-in or Check-out).");
-        return;
+    e.preventDefault();
+    if (!requestedStatus || !reason) {
+      alert("Please select a request type and provide a reason.");
+      return;
     }
-    if (!formData.reason) {
-        alert("Please provide a reason.");
-        return;
-    }
-    onSubmit(formData) // Submit the structured data
+    onSubmit({ date, checkInTime, checkOutTime, reason, requestedStatus });
   }
 
   return (
-    // The modal structure wraps this component in AttendancePage.tsx
-    // This component is just the form content
-    <div className="card p-6 rounded-xl shadow-lg relative bg-white dark:bg-gray-800">
-        <button
-          onClick={onClose}
-          className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
-          aria-label="Close regularization form"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <div className="card p-6 rounded-xl shadow-lg relative bg-white dark:bg-gray-800 w-full max-w-md">
+      <button
+        onClick={onClose}
+        className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+        aria-label="Close"
+      >
+        <X className="w-5 h-5" />
+      </button>
 
       <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">
         Attendance Regularization
@@ -66,10 +55,29 @@ export const RegularizationForm: FC<RegularizationFormProps> = ({ date, onClose,
           </label>
           <input
             type="text"
-            value={format(date, 'MMMM d, yyyy')} // Display formatted date
+            value={format(date, 'MMMM d, yyyy')}
             disabled
-            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 cursor-not-allowed"
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-lg cursor-not-allowed"
           />
+        </div>
+
+        <div>
+          <label htmlFor="requestType" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Request Type <span className="text-red-500">*</span>
+          </label>
+          <select
+            id="requestType"
+            value={requestedStatus}
+            onChange={(e) => setRequestedStatus(e.target.value)}
+            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg"
+            required
+          >
+            <option value="" disabled>Select a reason...</option>
+            <option value="Present">Forgot to Clock In/Out</option>
+            <option value="Absent">Mark as Absent (e.g., emergency)</option>
+            <option value="Half Day - First Half">Request Half Day (First Half)</option>
+            <option value="Half Day - Second Half">Request Half Day (Second Half)</option>
+          </select>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -80,26 +88,21 @@ export const RegularizationForm: FC<RegularizationFormProps> = ({ date, onClose,
             <input
               type="time"
               id="checkInTime"
-              value={formData.checkInTime}
-              // Update state correctly
-              onChange={(e) => setFormData(prev => ({ ...prev, checkInTime: e.target.value }))}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-primary-500 focus:border-primary-500"
-              // required // Make optional - user might only correct one time
+              value={checkInTime}
+              onChange={(e) => setCheckInTime(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg"
             />
           </div>
-
           <div>
             <label htmlFor="checkOutTime" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-               Corrected Check-out
+              Corrected Check-out
             </label>
             <input
               type="time"
               id="checkOutTime"
-              value={formData.checkOutTime}
-               // Update state correctly
-              onChange={(e) => setFormData(prev => ({ ...prev, checkOutTime: e.target.value }))}
-              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 focus:ring-primary-500 focus:border-primary-500"
-              // required // Make optional
+              value={checkOutTime}
+              onChange={(e) => setCheckOutTime(e.target.value)}
+              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg"
             />
           </div>
         </div>
@@ -110,28 +113,20 @@ export const RegularizationForm: FC<RegularizationFormProps> = ({ date, onClose,
           </label>
           <textarea
             id="reason"
-            value={formData.reason}
-             // Update state correctly
-            onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-primary-500 focus:border-primary-500 text-gray-900 dark:text-gray-100"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg resize-none"
             rows={3}
             required
-            placeholder="e.g., Forgot to clock out, client meeting delay..."
+            placeholder="e.g., Forgot to clock in, biometric issue..."
           />
         </div>
 
         <div className="flex justify-end space-x-3 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
-          >
+          <button type="button" onClick={onClose} className="btn-secondary">
             Cancel
           </button>
-          <button
-            type="submit"
-            className="px-4 py-2 text-sm font-medium bg-primary-600 hover:bg-primary-700 text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
-          >
+          <button type="submit" className="btn-primary">
             Submit Request
           </button>
         </div>

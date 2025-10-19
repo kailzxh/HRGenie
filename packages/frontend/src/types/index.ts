@@ -608,6 +608,9 @@ export interface RegularizationRequest {
  * Backend controllers will assemble this using data from multiple tables.
  */
 export interface AttendanceDayStatus {
+  clock_in_time: AttendanceDayStatus | undefined
+  clock_out_time: any
+  attendance_date: string
   date: string; // YYYY-MM-DD
   status: AttendanceRecordStatus | 'Leave' | 'Holiday' | 'Weekend'; // Combines statuses
   clockIn?: string | null; // HH:mm format (formatted by backend)

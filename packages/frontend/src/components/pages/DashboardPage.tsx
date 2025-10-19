@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { motion } from 'framer-motion'
 import KPIWidget from '@/components/widgets/KPIWidget'
 import QuickActionsWidget from '@/components/widgets/QuickActionsWidget'
-import {AttendanceSummaryWidget} from '@/components/widgets/AttendanceSummaryWidget'
+import { AttendanceSummaryWidget } from '@/components/widgets/AttendanceSummaryWidget'
 import LeaveBalanceWidget from '@/components/widgets/LeaveBalanceWidget'
 import RecruitmentFunnelWidget from '@/components/widgets/RecruitmentFunnelWidget'
 import TeamPerformanceWidget from '@/components/widgets/TeamPerformanceWidget'
@@ -60,7 +60,7 @@ export default function DashboardPage() {
               <PayrollOverviewWidget />
               <RecruitmentFunnelWidget />
               <TeamPerformanceWidget />
-              <AttendanceSummaryWidget />
+              <AttendanceSummaryWidget summary={null} />
               <AnnouncementsWidget />
               <QuickActionsWidget />
             </div>
@@ -107,7 +107,7 @@ export default function DashboardPage() {
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <RecruitmentFunnelWidget />
-              <AttendanceSummaryWidget />
+              <AttendanceSummaryWidget summary={null} />
               <AnnouncementsWidget />
               <QuickActionsWidget />
             </div>
@@ -154,7 +154,7 @@ export default function DashboardPage() {
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <TeamPerformanceWidget />
-              <AttendanceSummaryWidget />
+              <AttendanceSummaryWidget summary={null} />
               <LeaveBalanceWidget />
               <QuickActionsWidget />
             </div>
@@ -202,7 +202,7 @@ export default function DashboardPage() {
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <QuickActionsWidget />
-              <AttendanceSummaryWidget />
+              <AttendanceSummaryWidget summary={null} />
               <LeaveBalanceWidget />
               <AnnouncementsWidget />
             </div>
