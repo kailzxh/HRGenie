@@ -605,14 +605,14 @@ useEffect(() => {
             </motion.div>
           </div>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6">
+          {/* <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="card p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Interactive Team Calendar</h2>
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
               <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p>Full-screen interactive team calendar coming soon...</p>
               <p className="text-sm">Click on pending requests to approve/reject directly.</p>
             </div>
-          </motion.div>
+          </motion.div> */}
         </>
       )}
 

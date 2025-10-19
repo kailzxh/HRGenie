@@ -37,7 +37,7 @@ const menuItems = [
   { id: 'leaves', label: 'Leave Management', icon: Calendar, color: 'text-orange-500' },
   { id: 'attendance', label: 'Attendance', icon: Clock, color: 'text-teal-500' },
   { id: 'performance', label: 'Performance', icon: TrendingUp, color: 'text-pink-500' },
-  { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, color: 'text-indigo-500' },
+  // { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, color: 'text-indigo-500' },
 ] as const
 
 export default function Sidebar({ currentPage, onPageChange, isOpen, onToggle, isCollapsed, onCollapsedChange }: SidebarProps) {
@@ -287,7 +287,7 @@ function SidebarContent({ currentPage, onPageChange, menuItems, user, onLogout, 
 
         <div className="space-y-2">
           <div className="relative group">
-            <button className={`
+            {/* <button className={`
               w-full flex items-center px-3 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors
               ${!showExpanded ? 'justify-center' : ''}
             `}>
@@ -302,7 +302,7 @@ function SidebarContent({ currentPage, onPageChange, menuItems, user, onLogout, 
                   Settings
                 </motion.span>
               )}
-            </button>
+            </button> */}
             
             {/* Tooltip for collapsed state - only on desktop */}
             {!showExpanded && !isMobile && (

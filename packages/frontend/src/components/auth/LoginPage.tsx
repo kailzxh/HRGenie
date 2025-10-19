@@ -98,18 +98,18 @@ const handleSubmit = async (e: React.FormEvent) => {
 
 
   // --- Demo Login ---
-  const handleDemoLogin = (role: UserRole) => {
-    const demoCredentials: Record<UserRole, { email: string; password: string }> = {
-      admin: { email: 'admin@hrGenie.com', password: 'admin123' },
-      hr: { email: 'hr@hrGenie.com', password: 'hr123' },
-      manager: { email: 'manager@hrGenie.com', password: 'manager123' },
-      employee: { email: 'employee@hrGenie.com', password: 'employee123' }
-    }
-    setCredentials({
-      ...demoCredentials[role],
-      role
-    })
-  }
+  // const handleDemoLogin = (role: UserRole) => {
+  //   const demoCredentials: Record<UserRole, { email: string; password: string }> = {
+  //     admin: { email: 'admin@hrGenie.com', password: 'admin123' },
+  //     hr: { email: 'hr@hrGenie.com', password: 'hr123' },
+  //     manager: { email: 'manager@hrGenie.com', password: 'manager123' },
+  //     employee: { email: 'employee@hrGenie.com', password: 'employee123' }
+  //   }
+  //   setCredentials({
+  //     ...demoCredentials[role],
+  //     role
+  //   })
+  // }
 
   // --- Forgot Password ---
 const handleForgotPassword = async () => {
@@ -157,7 +157,7 @@ const handleForgotPassword = async () => {
               </div>
 
               {/* Demo Login */}
-              <div className="mb-6">
+              {/* <div className="mb-6">
                 <p className="text-sm text-white-600 mb-3 text-center">Try demo accounts:</p>
                 <div className="grid grid-cols-2 gap-2">
                   {(['admin', 'hr', 'manager', 'employee'] as UserRole[]).map((role) => (
@@ -166,7 +166,7 @@ const handleForgotPassword = async () => {
                     </button>
                   ))}
                 </div>
-              </div>
+              </div> */}
 
               {/* Login Form */}
               <form onSubmit={handleSubmit} className="space-y-6">

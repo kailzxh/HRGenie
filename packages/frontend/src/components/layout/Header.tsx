@@ -181,7 +181,7 @@ export default function Header({ onSidebarToggle, currentPage }: HeaderProps) {
 
           {/* Notifications */}
           <div className="relative">
-            <button
+            {/* <button
               onClick={() => setShowNotifications(!showNotifications)}
               className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
@@ -191,7 +191,7 @@ export default function Header({ onSidebarToggle, currentPage }: HeaderProps) {
                   {unreadCount}
                 </span>
               )}
-            </button>
+            </button> */}
 
             <AnimatePresence>
               {showNotifications && (
@@ -291,10 +291,10 @@ export default function Header({ onSidebarToggle, currentPage }: HeaderProps) {
                       <User className="w-4 h-4 mr-3" />
                       My Profile
                     </button>
-                    <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                    {/* <button className="w-full flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                       <Settings className="w-4 h-4 mr-3" />
                       Settings
-                    </button>
+                    </button> */}
                     <hr className="my-2 border-gray-200 dark:border-gray-700" />
                     <button 
                       onClick={handleLogout}

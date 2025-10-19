@@ -357,9 +357,9 @@ export default function AttendancePage() {
                    {/* My View Button (Always shown if role is loaded) */}
                    <button onClick={() => setView('employee')} className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors duration-150 ${view === 'employee' ? 'bg-white dark:bg-gray-900 text-primary-600 dark:text-primary-400 shadow' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}>My View</button>
                    {/* Manager View Button */}
-                   {(userRole === 'manager' || userRole === 'admin' || userRole === 'hr') && (<button onClick={() => setView('manager')} className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors duration-150 ${view === 'manager' ? 'bg-white dark:bg-gray-900 text-primary-600 dark:text-primary-400 shadow' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}>Manager</button>)}
+                   {(userRole === 'manager' ) && (<button onClick={() => setView('manager')} className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors duration-150 ${view === 'manager' ? 'bg-white dark:bg-gray-900 text-primary-600 dark:text-primary-400 shadow' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}>Manager</button>)}
                    {/* Admin View Button */}
-                   {(userRole === 'admin' || userRole === 'hr') && (<button onClick={() => setView('admin')} className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors duration-150 ${view === 'admin' ? 'bg-white dark:bg-gray-900 text-primary-600 dark:text-primary-400 shadow' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}>Admin</button>)}
+                   {(userRole === 'admin' || userRole === 'hr') && (<button onClick={() => setView('admin')} className={`px-3 py-1.5 rounded-md text-xs sm:text-sm font-medium transition-colors duration-150 ${view === 'admin' ? 'bg-white dark:bg-gray-900 text-primary-600 dark:text-primary-400 shadow' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}>HR Admin</button>)}
                </div>
                 {/* Clock In/Out Button */}
                {view === 'employee' && (
