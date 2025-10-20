@@ -1,23 +1,19 @@
-// pages/api/payroll/employees.ts
-import type { NextApiRequest, NextApiResponse } from 'next'
-import { supabaseServer } from '@/config/supabase'
+// src/app/api/payroll/employees/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import { supabaseServer } from '@/config/supabase';
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-
+export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.authorization;
+    const authHeader = req.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'No token provided' });
+      return NextResponse.json({ error: 'No token provided' }, { status: 401 });
     }
 
     const token = authHeader.split('Bearer ')[1];
     const { data: userData, error: userError } = await supabaseServer.auth.getUser(token);
 
     if (userError || !userData.user) {
-      return res.status(401).json({ error: 'Invalid or expired token' });
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
     }
 
     const employees = [
@@ -25,9 +21,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       { id: '2', name: 'Bob', base_salary: 60000, department: 'Finance' },
     ];
 
-    res.status(200).json(employees);
+    return NextResponse.json(employees);
   } catch (err: any) {
     console.error('Payroll API error:', err);
-    res.status(500).json({ error: 'Server error', details: err.message });
+    return NextResponse.json(
+      { error: 'Server error', details: err.message },
+      { status: 500 }
+    );
   }
 }
