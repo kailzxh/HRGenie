@@ -25,8 +25,8 @@ const StatItem: FC<{ icon: FC<LucideProps>; label: string; value: string | numbe
 export const AttendanceSummaryWidget: FC<AttendanceSummaryWidgetProps> = ({ summary }) => {
 
   const stats = [
-    { label: 'Present Days', value: summary?.presentDays ?? 0, icon: CheckCircle },
-    { label: 'Late Days', value: summary?.lateDaysMonth ?? 0, icon: AlertCircle },
+    { label: 'Present Days', value: summary?.present ?? 0, icon: CheckCircle },
+    { label: 'Late Days', value: summary?.late ?? 0, icon: AlertCircle },
     { label: 'Total Hours', value: summary?.totalHoursMonth ?? '0.00', icon: Clock, unit: 'hrs' },
     { label: 'Avg. Daily Hours', value: summary?.avgHoursDay ?? '0.00', icon: TrendingUp, unit: 'hrs' }
   ];

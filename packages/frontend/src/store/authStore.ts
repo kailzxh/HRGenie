@@ -76,56 +76,57 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       permissions: [],
 
-      login: async (credentials: LoginCredentials) => {
-        set({ loading: true, error: null })
+     login: async (credentials: LoginCredentials) => {
+  set({ loading: true, error: null })
 
-        try {
-          let user: SupabaseUser | null = null
+  try {
+    let user: SupabaseUser | null = null
 
-          if (credentials.provider === 'google' && supabase.auth.signInWithOAuth) {
-            const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
-            if (error) throw error
-            user = data.user
-          } else if (credentials.email && credentials.password) {
-            const { data, error } = await supabase.auth.signInWithPassword({
-              email: credentials.email,
-              password: credentials.password
-            })
-            if (error) throw error
-            user = data.user
-          } else {
-            throw new Error('Invalid login credentials')
-          }
+    if (credentials.provider === 'google') {
+      const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' })
+      if (error) throw error
+      window.location.href = data.url // redirect for OAuth login
+      return
+    } else if (credentials.email && credentials.password) {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password
+      })
+      if (error) throw error
+      user = data.user
+    } else {
+      throw new Error('Invalid login credentials')
+    }
 
-          if (!user) throw new Error('User not found')
+    if (!user) throw new Error('User not found')
 
-          // Fetch user profile from your database
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles') // Assuming 'profiles' table is in the public schema
-            .select('*')
-            .eq('id', user.id)
-            .single()
+    // Fetch profile from your database...
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
 
-          if (profileError) throw profileError
+    if (profileError) throw profileError
 
-          const userData: User = {
-            id: user.id,
-            email: user.email ?? '',
-            name: profile?.name ?? user.email?.split('@')[0] ?? 'User',
-            role: (profile?.role as UserRole) || 'employee'
-          }
+    const userData: User = {
+      id: user.id,
+      email: user.email ?? '',
+      name: profile?.name ?? user.email?.split('@')[0] ?? 'User',
+      role: (profile?.role as UserRole) || 'employee'
+    }
 
-          const permissions = getRolePermissions(userData.role)
+    const permissions = getRolePermissions(userData.role)
+    set({ user: userData, isAuthenticated: true, permissions, loading: false })
+  } catch (error) {
+    set({
+      error: error instanceof Error ? error.message : 'Login failed',
+      loading: false
+    })
+    throw error
+  }
+},
 
-          set({ user: userData, isAuthenticated: true, permissions, loading: false })
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Login failed',
-            loading: false
-          })
-          throw error
-        }
-      },
 
       logout: async () => {
         try {

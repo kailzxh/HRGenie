@@ -709,16 +709,16 @@ useEffect(() => {
     
     {/* --- Apply theme to the container and inputs --- */}
     <div className="flex flex-wrap items-center gap-2"> {/* Use flex-wrap and gap */}
-      
-      {/* Employee ID Input */}
+
+      {/* Employee Email Input */}
      <input 
   type="text" 
-  placeholder="Employee ID" // <-- CHANGE THIS PLACEHOLDER
-  value={manualAdjustmentForm.employeeId} 
-  onChange={(e) => setManualAdjustmentForm(prev => ({...prev, employeeId: e.target.value}))} 
-  className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 flex-grow sm:flex-grow-0" 
-/>
-      
+  placeholder="Employee Email"
+  value={manualAdjustmentForm.employeeEmail}
+  onChange={(e) => setManualAdjustmentForm(prev => ({...prev, employeeEmail: e.target.value}))}
+  className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 flex-grow sm:flex-grow-0"
+ />
+
       {/* Leave Type Select */}
       <select 
         value={manualAdjustmentForm.policyName} 
@@ -728,7 +728,7 @@ useEffect(() => {
         <option value="">Select Leave Type</option>
         {Object.keys(leavePolicies).map(p => <option key={p} value={p}>{p}</option>)}
       </select>
-      
+
       {/* Days Input */}
       <input 
         type="number" 
@@ -737,7 +737,7 @@ useEffect(() => {
         onChange={(e) => setManualAdjustmentForm(prev => ({...prev, days: Number(e.target.value)}))} 
         className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 w-20" // Added theme, fixed width
       />
-      
+
       {/* Credit Button */}
       <button 
         onClick={() => handleManualAdjustment('credit')} 
@@ -745,7 +745,7 @@ useEffect(() => {
       >
         <UserPlus className="w-4 h-4" /> <span>Credit</span>
       </button>
-      
+
       {/* Debit Button */}
       <button 
         onClick={() => handleManualAdjustment('debit')} 

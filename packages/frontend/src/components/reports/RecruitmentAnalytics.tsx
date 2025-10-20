@@ -1,9 +1,10 @@
 'use client';
 
-import { Card } from '@/components/ui/card';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, FunnelChart, Funnel, FunnelPlot, PieChart, Pie, Cell } from 'recharts';
+import { Card, CardContent } from '@/components/ui/card';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, FunnelChart, Funnel, PieChart, Pie, Cell,PieLabelRenderProps } from 'recharts';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+
 
 interface RecruitmentAnalyticsProps {
   dateRange?: { from: Date; to: Date };
@@ -92,26 +93,27 @@ export default function RecruitmentAnalytics({
             </Button>
           </div>
           <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={sourceData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, percent }: { name: string; percent: number }) => 
-                    `${name} ${(percent * 100).toFixed(0)}%`
-                  }
-                >
-                  {sourceData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+         <ResponsiveContainer width="100%" height="100%">
+  <PieChart>
+    <Pie
+      data={sourceData}
+      cx="50%"
+      cy="50%"
+      outerRadius={100}
+      fill="#8884d8"
+      dataKey="value"
+      label={(props: PieLabelRenderProps) => {
+        const { name, value, percent } = props;
+        return `${name} (${value}) ${((percent as any || 0) * 100).toFixed(0)}%`; // percent can be undefined, so use !
+      }}
+    >
+      {sourceData.map((entry, index) => (
+        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+      ))}
+    </Pie>
+    <Tooltip />
+  </PieChart>
+</ResponsiveContainer>
           </div>
         </Card>
       </div>

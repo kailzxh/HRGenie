@@ -8,9 +8,10 @@ import { supabaseOnboarding } from '@/config/supabase'
 interface RecruitmentFunnelWidgetProps {
   newApplicants?: number;
   openPositions?: number;
+  recentEmployees?: number;
 }
 
-export default function RecruitmentFunnelWidget({ newApplicants, openPositions }: RecruitmentFunnelWidgetProps) {
+export default function RecruitmentFunnelWidget({ newApplicants, openPositions, recentEmployees }: RecruitmentFunnelWidgetProps) {
   const [funnelData, setFunnelData] = useState<Array<{
     stage: string;
     count: number;

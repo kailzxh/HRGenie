@@ -126,11 +126,11 @@ export default function AttendancePage() {
          // Check role access *before* fetching
          if (view === 'employee') {
             await fetchEmployeeAttendanceData();
-         } else if (view === 'manager' && (userRole === 'manager' || userRole === 'admin' || userRole === 'hr')) {
+         } else if (view === 'manager' && (userRole === 'manager' || userRole === 'admin')) {
             await fetchManagerAttendanceData();
          } else if (view === 'admin' && (userRole === 'admin' || userRole === 'hr')) {
             await fetchAdminAttendanceData();
-         } else if (view !== 'employee' && userRole === 'employee') { // Explicitly handle employee trying invalid view
+         } else if (userRole === 'employee') { // Explicitly handle employee trying invalid view
             console.warn(`Role 'employee' cannot access '${view}'. Defaulting.`);
             setView('employee'); // Will trigger refetch for employee view
             return; // Exit early
@@ -470,8 +470,8 @@ export default function AttendancePage() {
                                <div className="flex-1 min-w-0">
                                    <p className="font-medium text-sm text-gray-800 dark:text-white truncate">{request.employeeName}</p>
                                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                                       {format(parseISO(request.date), 'MMM d, yyyy')}
-                                   </p>
+  {format(parseISO(request.date ?? new Date().toISOString()), 'MMM d, yyyy')}
+</p>
                                    <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 line-clamp-2" title={request.reason}> {/* Add title for full   reason */}
                                        {request.reason || 'No reason provided'}
                                    </p>
@@ -484,12 +484,12 @@ export default function AttendancePage() {
                                    <button
                                        onClick={() => handleRegularizationApproval(request.id, 'approved')}
                                        className="px-2.5 py-1 bg-green-500 text-white rounded text-xs font-semibold hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 transition-colors"
-                                       aria-label={`Approve request for ${request.employeeName} on ${format(parseISO(request.date), 'MMM d')}`}
+                                       aria-label={`Approve request for ${request.employeeName} on ${format(parseISO(request.date ?? new Date().toISOString()), 'MMM d')}`}
                                    >Approve</button>
                                    <button
                                        onClick={() => handleRegularizationApproval(request.id, 'rejected')}
                                        className="px-2.5 py-1 bg-red-500 text-white rounded text-xs font-semibold hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-50 transition-colors"
-                                        aria-label={`Reject request for ${request.employeeName} on ${format(parseISO(request.date), 'MMM d')}`}
+                                        aria-label={`Reject request for ${request.employeeName} on ${format(parseISO(request.date ?? new Date().toISOString()), 'MMM d')}`}
                                    >Reject</button>
                                </div>
                              </div>
@@ -549,4 +549,3 @@ const StatCard: FC<StatCardProps> = ({ icon: Icon, color, label, value, isSmallT
         </motion.div>
     );
 };
-

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { Employee, Role } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -60,14 +60,6 @@ export function EmployeeForm({ onSubmit, onCancel, initialData, isEdit }: Employ
   })
 
   const [loading, setLoading] = useState(false)
-  
-  const availableRoles = useMemo(() => {
-    const roles: Role[] = ['employee', 'manager', 'hr'];
-    if (canCreateAdmin) {
-      roles.push('admin');
-    }
-    return roles;
-  }, [canCreateAdmin]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -135,7 +127,7 @@ export function EmployeeForm({ onSubmit, onCancel, initialData, isEdit }: Employ
           </div>
           <div>
             <Label>Department</Label>
-            <select id="department"
+            <select
               name="department"
               value={formData.department}
               onChange={handleChange}
@@ -164,7 +156,7 @@ export function EmployeeForm({ onSubmit, onCancel, initialData, isEdit }: Employ
           </div>
           <div>
             <Label>Location</Label>
-            <select id="location"
+            <select
               name="location"
               value={formData.location}
               onChange={handleChange}
@@ -182,19 +174,19 @@ export function EmployeeForm({ onSubmit, onCancel, initialData, isEdit }: Employ
         {/* Role Dropdown */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Label>Role</Label>
+            <Label htmlFor="role">Role</Label>
             <Select 
-              id="role"
-              value={formData.role || 'employee'}
+              value={formData.role ?? 'employee'}
               onValueChange={(value: Role) => setFormData({ ...formData, role: value })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
-              <SelectContent id="role-content">
-                {availableRoles.map(role => (
-                  <SelectItem key={role} value={role}>{role.charAt(0).toUpperCase() + role.slice(1)}</SelectItem>
-                ))}
+              <SelectContent>
+                <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="hr">HR</SelectItem>
+                {canCreateAdmin && <SelectItem value="admin">Admin</SelectItem>}
               </SelectContent>
             </Select>
           </div>

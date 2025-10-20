@@ -49,6 +49,7 @@ const pageLabels = {
   leaves: 'Leave Management',
   attendance: 'Attendance',
   performance: 'Performance',
+  reports: 'Reports',
  
 }
 
@@ -207,7 +208,7 @@ export default function Header({ onSidebarToggle, currentPage, onSearch }: Heade
             {/* Page Title */}
             <div>
               <h1 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">
-                {pageLabels[currentPage]}
+                {pageLabels[currentPage as keyof typeof pageLabels]}
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">
                 Welcome back, {user?.name}!

@@ -49,6 +49,7 @@ export interface Employee {
   skills?: string[]
   leaveBalance: LeaveBalance
   performanceScore?: number
+   role: Role
 }
 
 export type EmployeeStatus = 'active' | 'inactive' | 'on-leave' | 'terminated'
@@ -200,6 +201,14 @@ export interface Candidate {
   notes?: Note[]
   interviews?: Interview[]
   status: CandidateStatus
+  resume_score?: number | null
+  github_score?: number | null
+  technical_interview_score?: number | null
+  hr_interview_score?: number | null
+  created_at: string
+  updated_at: string
+  job_id: string
+  full_name: string
 }
 
 export type CandidateStage = 'applied' | 'screening' | 'phone-interview' | 'technical-interview' | 'final-interview' | 'offer' | 'hired' | 'rejected'
@@ -287,7 +296,7 @@ export interface AttendanceRecord {
   checkIn?: string
   checkOut?: string
   breakTime?: number
-  totalHours?: number | null
+  totalHours?: number
   overtime?: number
   status: AttendanceStatus
   location?: string
@@ -307,6 +316,8 @@ export interface AttendanceSummary {
   totalHours: number
   overtimeHours: number
   averageHours: number
+  presentDays: number
+  lateDaysMonth: number
 }
 
 // Performance Types
@@ -555,17 +566,17 @@ export type AttendanceRecordStatus =
   | 'Regularized - Present' | 'Regularized - Late';
 
 export interface AttendanceRecord {
-  id: string; // UUID
-  employee_id: string; // UUID
-  attendance_date: string; // DATE 'YYYY-MM-DD'
-  clock_in_time: string | null; // TIMESTAMPTZ (ISO string) or null
-  clock_out_time: string | null; // TIMESTAMPTZ (ISO string) or null 
-  hours_worked: number | null; // NUMERIC(4, 2) or null
-  status: AttendanceRecordStatus;
-  work_location: string | null; // e.g., 'Office', 'Home', 'Client Site'
-  notes?: string | null;
-  created_at?: string; // TIMESTAMPTZ (ISO string)
-  updated_at?: string; // TIMESTAMPTZ (ISO string)
+  id: string;
+  employee_id: string;
+  attendance_date: string;
+  clock_in_time: string | null;
+  clock_out_time: string | null;
+  hours_worked: number | null;
+  status: AttendanceStatus;      // match other declarations
+  work_location: string | null;
+  notes?: string;                // optional string only
+  created_at?: string;
+  updated_at?: string;
 }
 
 /**
@@ -637,7 +648,7 @@ export interface AttendanceSummaryData {
     todayClockIn?: string | null; // HH:mm format for today
 }
 
-
+export type Role = 'employee' | 'manager' | 'hr' | 'admin';
 // --- API Response Types for Views ---
 
 /**

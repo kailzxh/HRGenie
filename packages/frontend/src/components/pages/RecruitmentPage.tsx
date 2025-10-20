@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Candidate } from '@/types'
 
 // Define a type for our application object for better type safety
 interface Application {
@@ -53,7 +54,8 @@ export default function RecruitmentPage() {
   const [showForm, setShowForm] = useState(false)
   const [formData, setFormData] = useState<any>({ employment_type: 'Full-time' })
   const [showViewDialog, setShowViewDialog] = useState(false)
-  const [viewJob, setViewJob] = useState<JobOpening | null>(null)
+  const [viewJob, setViewJob] = useState<JobOpening | Candidate | null>(null)
+
 const [dropdownOpen, setDropdownOpen] = useState<Record<string, boolean>>({});
   // --- State for applications/pipeline ---
   const [applications, setApplications] = useState<Application[]>([])

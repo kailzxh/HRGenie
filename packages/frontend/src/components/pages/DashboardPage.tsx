@@ -31,6 +31,7 @@ interface DashboardData {
     total_gross: number;
     total_net: number;
     employee_count: number;
+    created_at: string; // Added created_at to match PayrollOverviewWidget's expected type
   }>;
   teamMembersCount?: number;
   teamMembers?: Array<{
@@ -267,12 +268,15 @@ export default function DashboardPage({ initialData }: DashboardPageProps) {
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               <PayrollOverviewWidget payrollRuns={dashboardData?.payrollRuns} />
               <RecruitmentFunnelWidget 
-                recentEmployees={dashboardData?.recentEmployees}
+                // recentEmployees={dashboardData?.recentEmployees} // Removed as it's not a number
                 newApplicants={dashboardData?.newApplicants}
                 openPositions={dashboardData?.openPositions}
               />
-              <TeamPerformanceWidget teamMembers={dashboardData?.teamMembers} />
-              <AttendanceSummaryWidget summary={dashboardData?.attendanceSummary} />
+              <TeamPerformanceWidget teamMembers={dashboardData?.teamMembers} /> 
+              {/* <AttendanceSummaryWidget summary={dashboardData?.attendanceSummary ?? null} /> */}
+
+
+
             </div>
           </>
         )
@@ -317,11 +321,11 @@ export default function DashboardPage({ initialData }: DashboardPageProps) {
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <RecruitmentFunnelWidget 
-                recentEmployees={dashboardData?.recentEmployees}
+                // recentEmployees={dashboardData?.recentEmployees}
                 newApplicants={dashboardData?.newApplicants}
                 openPositions={dashboardData?.openPositions}
               />
-              <AttendanceSummaryWidget summary={dashboardData?.attendanceSummary} />
+              {/* <AttendanceSummaryWidget summary={dashboardData?.attendanceSummary} /> */}
               <PayrollOverviewWidget payrollRuns={dashboardData?.payrollRuns} />
             </div>
           </>
@@ -367,7 +371,7 @@ export default function DashboardPage({ initialData }: DashboardPageProps) {
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <TeamPerformanceWidget teamMembers={dashboardData?.teamMembers} />
-              <AttendanceSummaryWidget summary={dashboardData?.attendanceSummary} />
+              {/* <AttendanceSummaryWidget summary={dashboardData?.attendanceSummary} /> */}
               <LeaveBalanceWidget 
   leaveBalance={dashboardData?.leaveBalance}
   employeeId={dashboardData?.managerInfo?.id}
@@ -418,7 +422,7 @@ export default function DashboardPage({ initialData }: DashboardPageProps) {
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <AttendanceSummaryWidget summary={dashboardData?.attendanceSummary} />
+              {/* <AttendanceSummaryWidget summary={dashboardData?.attendanceSummary} /> */}
              <LeaveBalanceWidget 
   leaveBalance={dashboardData?.leaveBalance}
   employeeId={dashboardData?.managerInfo?.id}
