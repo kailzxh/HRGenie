@@ -12,7 +12,7 @@ import attendanceRoutes from './routes/attendanceRoutes';
 import performanceRoutes from './routes/performanceeRoutes';
 import dashboardRoutes from './routes/dashboard';
 const app = express();
-const PORT = process.env.BACKEND_PORT || 5000;
+const PORT = process.env.PORT || 5000;
 import dotenv from 'dotenv';
 
 dotenv.config(); // ✅ Load .env variables
