@@ -1,7 +1,7 @@
 // app/api/recruitment/applications/bulk-update/route.ts
 import { NextResponse } from 'next/server';
 
-const BASE_URL = 'http://localhost:5000/api/recruitment';
+const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/recruitment`;
 
 export async function POST(req: Request) {
   try {

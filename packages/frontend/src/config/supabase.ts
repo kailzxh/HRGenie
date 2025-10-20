@@ -6,3 +6,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const supabaseServer = createClient(supabaseUrl, supabaseAnonKey);
+
+
+export const supabaseOnboarding = createClient(supabaseUrl, supabaseAnonKey, {
+  db: {
+    schema: 'onboarding',
+  },
+})

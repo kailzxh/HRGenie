@@ -9,13 +9,48 @@ const router = express.Router();
 router.get(
   '/',
   verifySupabaseToken,
-  authorize(['admin', 'hr']),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { data, error } = await supabase
+      const userRole = req.user!.role;
+      const userEmail = req.user!.email;
+
+      let query = supabase
         .from('employees')
         .select('*')
         .order('created_at', { ascending: false });
+
+      // Apply role-based filtering
+      if (userRole === 'manager') {
+        // First, get the manager's employee record
+        const { data: managerEmployee, error: managerError } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('email', userEmail)
+          .single();
+
+        if (managerError || !managerEmployee) {
+          return res.status(403).json({ error: 'Manager employee record not found' });
+        }
+
+        // Managers can only see employees under their management
+        query = query.eq('manager_id', managerEmployee.id);
+      } else if (userRole === 'employee') {
+        // Employees can only see themselves
+        const { data: employeeData, error: employeeError } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('email', userEmail)
+          .single();
+
+        if (employeeError || !employeeData) {
+          return res.status(403).json({ error: 'Employee record not found' });
+        }
+
+        query = query.eq('id', employeeData.id);
+      }
+      // Admin and HR can see all employees (no additional filtering)
+
+      const { data, error } = await query;
 
       if (error) throw error;
       res.json(data);
@@ -26,10 +61,39 @@ router.get(
   }
 );
 
+// GET EMPLOYEE BY EMAIL
+router.get('/email/:email', verifySupabaseToken, async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.params;
+    const userRole = req.user!.role;
+    const userEmail = req.user!.email;
+
+    // Users can only access their own email unless admin/hr
+    if (userRole !== 'admin' && userRole !== 'hr' && email !== userEmail) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const { data, error } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (error) throw error;
+    res.json(data);
+  } catch (error: any) {
+    console.error('Error fetching employee by email:', error);
+    res.status(500).json({ error: error.message || 'Failed to fetch employee' });
+  }
+});
+
 // GET SINGLE EMPLOYEE
 router.get('/:id', verifySupabaseToken, async (req: AuthRequest, res: Response) => {
   try {
     const { id } = req.params;
+    const userRole = req.user!.role;
+    const userEmail = req.user!.email;
+
     const { data, error } = await supabase
       .from('employees')
       .select('*')
@@ -38,14 +102,31 @@ router.get('/:id', verifySupabaseToken, async (req: AuthRequest, res: Response) 
 
     if (error) throw error;
 
-    // Only admin/HR or the employee themselves
-    if (
-      req.user!.role !== 'admin' &&
-      req.user!.role !== 'hr' &&
-      req.user!.id !== data.uid
-    ) {
-      return res.status(403).json({ error: 'Access denied' });
+    // Role-based access control
+    if (userRole === 'employee') {
+      // Employees can only see themselves
+      const { data: employeeData } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('email', userEmail)
+        .single();
+
+      if (employeeData?.id !== id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    } else if (userRole === 'manager') {
+      // Managers can only see employees under their management
+      const { data: managerEmployee } = await supabase
+        .from('employees')
+        .select('id')
+        .eq('email', userEmail)
+        .single();
+
+      if (data.manager_id !== managerEmployee?.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
     }
+    // Admin and HR can see any employee
 
     res.json(data);
   } catch (error: any) {
@@ -71,7 +152,7 @@ router.post(
       const errors = validationResult(req);
       if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
-      const { name, email, department, position, role, location, status } = req.body;
+      const { name, email, department, position, role, location, status, manager_id } = req.body;
       const creatorRole = req.user!.role;
 
       // HR cannot create admin
@@ -107,6 +188,7 @@ router.post(
             role,
             location: location || null,
             status: status || 'pending',
+            manager_id: manager_id || null,
             created_at: new Date(),
           },
         ])
@@ -127,12 +209,14 @@ router.post(
 router.put(
   '/:id',
   verifySupabaseToken,
-  authorize(['admin', 'hr']),
   async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
-      const { name, email, department, position, role, status, location } = req.body;
+      const { name, email, department, position, role, status, location, manager_id } = req.body;
+      const userRole = req.user!.role;
+      const userEmail = req.user!.email;
 
+      // Get the employee to update
       const { data: employee, error } = await supabase
         .from('employees')
         .select('*')
@@ -140,27 +224,127 @@ router.put(
         .single();
       if (error) throw error;
 
-      // HR cannot update admin
-      if (req.user!.role === 'hr' && employee.role === 'admin') {
-        return res.status(403).json({ error: 'HR cannot modify admin accounts.' });
-      }
+      // Role-based access control for updates
+      if (userRole === 'employee') {
+        // Employees can only update themselves
+        const { data: currentUserEmployee } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('email', userEmail)
+          .single();
 
-      // Update role in Supabase Auth if role changes
-      if (role && role !== employee.role) {
-        await supabaseAdmin.auth.admin.updateUserById(employee.uid, {
-          user_metadata: { role },
+        if (currentUserEmployee?.id !== id) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+
+        // Employees can only update certain fields
+        const allowedFields = ['name', 'phone'];
+        const updateData: any = {};
+        allowedFields.forEach(field => {
+          if (req.body[field] !== undefined) updateData[field] = req.body[field];
         });
+        updateData.updated_at = new Date();
+
+        const { data: updatedEmployee, error: updateError } = await supabase
+          .from('employees')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        return res.json({ message: 'Employee updated successfully', employee: updatedEmployee });
+
+      } else if (userRole === 'manager') {
+        // Managers can only update employees under their management
+        const { data: managerEmployee } = await supabase
+          .from('employees')
+          .select('id')
+          .eq('email', userEmail)
+          .single();
+
+        if (employee.manager_id !== managerEmployee?.id) {
+          return res.status(403).json({ error: 'Access denied' });
+        }
+
+        // Managers can update limited fields for their team
+        const allowedFields = ['name', 'department', 'position', 'location', 'status'];
+        const updateData: any = {};
+        allowedFields.forEach(field => {
+          if (req.body[field] !== undefined) updateData[field] = req.body[field];
+        });
+        updateData.updated_at = new Date();
+
+        const { data: updatedEmployee, error: updateError } = await supabase
+          .from('employees')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+        return res.json({ message: 'Employee updated successfully', employee: updatedEmployee });
+
+      } else if (userRole === 'hr') {
+        // HR cannot update admin
+        if (employee.role === 'admin') {
+          return res.status(403).json({ error: 'HR cannot modify admin accounts.' });
+        }
+
+        // HR can update most fields except role to admin
+        const updateData: any = { 
+          name, email, department, position, location, status, manager_id,
+          updated_at: new Date() 
+        };
+        
+        if (role && role !== 'admin') {
+          updateData.role = role;
+        }
+
+        const { data: updatedEmployee, error: updateError } = await supabase
+          .from('employees')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+
+        // Update role in Supabase Auth if role changes
+        if (role && role !== employee.role) {
+          await supabaseAdmin.auth.admin.updateUserById(employee.uid, {
+            user_metadata: { role },
+          });
+        }
+
+        return res.json({ message: 'Employee updated successfully', employee: updatedEmployee });
+      } else if (userRole === 'admin') {
+        // Admin can update everything
+        const updateData = { 
+          name, email, department, position, role, status, location, manager_id,
+          updated_at: new Date() 
+        };
+
+        const { data: updatedEmployee, error: updateError } = await supabase
+          .from('employees')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateError) throw updateError;
+
+        // Update role in Supabase Auth if role changes
+        if (role && role !== employee.role) {
+          await supabaseAdmin.auth.admin.updateUserById(employee.uid, {
+            user_metadata: { role },
+          });
+        }
+
+        return res.json({ message: 'Employee updated successfully', employee: updatedEmployee });
       }
 
-      const { data: updatedEmployee, error: updateError } = await supabase
-        .from('employees')
-        .update({ name, email, department, position, role, status, location, updated_at: new Date() })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
-      res.json({ message: 'Employee updated successfully', employee: updatedEmployee });
+      res.status(403).json({ error: 'Access denied' });
     } catch (error: any) {
       console.error('Error updating employee:', error);
       res.status(500).json({ error: error.message || 'Failed to update employee' });
@@ -172,10 +356,10 @@ router.put(
 router.delete(
   '/:id',
   verifySupabaseToken,
-  authorize(['admin']),
   async (req: AuthRequest, res: Response) => {
     try {
       const { id } = req.params;
+      const userRole = req.user!.role;
 
       const { data: employee, error } = await supabase
         .from('employees')
@@ -183,6 +367,11 @@ router.delete(
         .eq('id', id)
         .single();
       if (error) throw error;
+
+      // Only admin can delete employees
+      if (userRole !== 'admin') {
+        return res.status(403).json({ error: 'Access denied' });
+      }
 
       if (req.user!.id === employee.uid) {
         return res.status(403).json({ error: 'You cannot delete your own account.' });

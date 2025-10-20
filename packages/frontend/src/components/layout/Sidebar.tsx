@@ -67,18 +67,25 @@ export default function Sidebar({ currentPage, onPageChange, isOpen, onToggle, i
   }
 
   // Filter menu items based on user role
-  const getFilteredMenuItems = () => {
-    if (!user) return [...menuItems]
+ // Filter menu items based on user role
+const getFilteredMenuItems = () => {
+  if (!user) return [...menuItems]
 
-    const rolePermissions = {
-      admin: [...menuItems],
-      hr: menuItems.filter(item => ['dashboard', 'employees', 'recruitment', 'leaves', 'reports'].includes(item.id)),
-      manager: menuItems.filter(item => ['dashboard', 'employees', 'leaves', 'attendance', 'performance', 'reports'].includes(item.id)),
-      employee: menuItems.filter(item => ['dashboard', 'leaves', 'attendance', 'performance'].includes(item.id))
-    }
-
-    return rolePermissions[user.role] || [...menuItems]
+  const rolePermissions = {
+    admin: [...menuItems],
+    hr: menuItems.filter(item => 
+      ['dashboard', 'employees', 'recruitment', 'payroll', 'leaves', 'attendance', 'performance'].includes(item.id)
+    ),
+    manager: menuItems.filter(item => 
+      ['dashboard', 'employees', 'payroll', 'leaves', 'attendance', 'performance'].includes(item.id)
+    ),
+    employee: menuItems.filter(item => 
+      ['dashboard', 'payroll', 'leaves', 'attendance', 'performance'].includes(item.id) // Removed 'employees'
+    )
   }
+
+  return rolePermissions[user.role] || [...menuItems]
+}
 
   const filteredMenuItems = getFilteredMenuItems()
 

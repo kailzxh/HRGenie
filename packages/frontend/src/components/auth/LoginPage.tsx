@@ -215,8 +215,8 @@ const handleForgotPassword = async () => {
                 <div className="mt-6 flex items-center gap-3">
                   <div className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-3xl border border-white/40" />
                   <div>
-                    <p className="font-semibold text-white">Michael Carter</p>
-                    <p className="text-white/80 text-sm">Software Engineer at DevCore</p>
+                    <p className="font-semibold text-white">Kailash</p>
+                    <p className="text-white/80 text-sm">Student from dsatm</p>
                   </div>
                 </div>
               </div>

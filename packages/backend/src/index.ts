@@ -10,14 +10,17 @@ import payrollRoutes from './routes/payroll';
 import leaveRoutes from './routes/leaves';   
 import attendanceRoutes from './routes/attendanceRoutes';  
 import performanceRoutes from './routes/performanceeRoutes';
+import dashboardRoutes from './routes/dashboard';
 const app = express();
 const PORT = process.env.BACKEND_PORT || 5000;
+import dotenv from 'dotenv';
 
+dotenv.config(); // ✅ Load .env variables
 // CORS configuration
 // If frontend is on localhost:3000
 app.use(
   cors({
-    origin: 'http://localhost:3000', // frontend URL
+    origin: process.env.FRONTEND_URL, // frontend URL
     credentials: true, // allow cookies/auth headers
   })
 );
@@ -34,6 +37,7 @@ app.use('/api/payroll', payrollRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/performance', performanceRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 
 // Health check

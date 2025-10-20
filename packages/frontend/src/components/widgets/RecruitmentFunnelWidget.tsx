@@ -1,46 +1,102 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { Users, Eye, MessageSquare, CheckCircle } from 'lucide-react'
+import { Users, Eye, MessageSquare, CheckCircle, LucideIcon } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { supabaseOnboarding } from '@/config/supabase'
 
-export default function RecruitmentFunnelWidget() {
-  const funnelData = [
-    {
-      stage: 'Applied',
-      count: 156,
-      icon: Users,
-      color: 'bg-blue-500',
-      width: 100
-    },
-    {
-      stage: 'Screened',
-      count: 89,
-      icon: Eye,
-      color: 'bg-purple-500',
-      width: 75
-    },
-    {
-      stage: 'Interview',
-      count: 34,
-      icon: MessageSquare,
-      color: 'bg-yellow-500',
-      width: 50
-    },
-    {
-      stage: 'Hired',
-      count: 12,
-      icon: CheckCircle,
-      color: 'bg-green-500',
-      width: 25
-    }
-  ]
+interface RecruitmentFunnelWidgetProps {
+  newApplicants?: number;
+  openPositions?: number;
+}
 
-  const aiQueue = {
-    processing: 15,
-    completed: 24,
-    pending: 8
-  }
+export default function RecruitmentFunnelWidget({ newApplicants, openPositions }: RecruitmentFunnelWidgetProps) {
+  const [funnelData, setFunnelData] = useState<Array<{
+    stage: string;
+    count: number;
+    icon: LucideIcon;
+    color: string;
+    width: number;
+  }>>([]);
 
+  const [aiQueue, setAiQueue] = useState({ processing: 0, completed: 0, pending: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchRecruitmentData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch applications for current month
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const { data: applications, error } = await supabaseOnboarding
+          .from('applications')
+          .select('id, status, created_at, resume_score, resume_analysis')
+          .gte('created_at', startOfMonth.toISOString());
+
+        if (error) {
+          console.error('Error fetching applications:', error);
+          return;
+        }
+
+        if (applications && applications.length > 0) {
+          // Calculate funnel stages based on actual status values
+          const applied = applications.length;
+          const screened = applications.filter(app => 
+            app.status === 'screened' || app.status === 'interview' || app.status === 'hired'
+          ).length;
+          const interview = applications.filter(app => 
+            app.status === 'interview' || app.status === 'hired'
+          ).length;
+          const hired = applications.filter(app => app.status === 'hired').length;
+
+          setFunnelData([
+            { stage: 'Applied', count: applied, icon: Users, color: 'bg-blue-500', width: 100 },
+            { stage: 'Screened', count: screened, icon: Eye, color: 'bg-purple-500', width: Math.round((screened/applied)*100) || 0 },
+            { stage: 'Interview', count: interview, icon: MessageSquare, color: 'bg-yellow-500', width: Math.round((interview/applied)*100) || 0 },
+            { stage: 'Hired', count: hired, icon: CheckCircle, color: 'bg-green-500', width: Math.round((hired/applied)*100) || 0 }
+          ]);
+
+          // AI queue based on resume_score and resume_analysis
+          const processing = applications.filter(app => 
+            app.status === 'submitted' && 
+            (!app.resume_score || app.resume_score === 0) &&
+            (!app.resume_analysis || Object.keys(app.resume_analysis).length === 0)
+          ).length;
+          
+          const completed = applications.filter(app => 
+            app.resume_score > 0 || 
+            (app.resume_analysis && Object.keys(app.resume_analysis).length > 0)
+          ).length;
+
+          setAiQueue({ 
+            processing, 
+            completed, 
+            pending: applications.length - processing - completed 
+          });
+        }
+
+        // Fetch open positions if not provided
+        if (!openPositions) {
+          const { data: jobs, error: jobsError } = await supabaseOnboarding
+            .from('jobs')
+            .select('id')
+            .eq('is_active', true);
+          
+          if (jobs) {
+            // You can use this data if needed
+          }
+        }
+
+      } catch (error) {
+        console.error('Error in recruitment widget:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRecruitmentData();
+  }, [newApplicants, openPositions]);
   return (
     <div className="card p-6">
       <div className="flex items-center justify-between mb-6">
@@ -87,7 +143,7 @@ export default function RecruitmentFunnelWidget() {
                   className={`h-full ${stage.color} flex items-center justify-center`}
                 >
                   <span className="text-white text-xs font-medium">
-                    {Math.round((stage.count / funnelData[0].count) * 100)}%
+                    {stage.width}%
                   </span>
                 </motion.div>
               </div>
@@ -134,44 +190,6 @@ export default function RecruitmentFunnelWidget() {
             <div className="text-xs text-gray-600 dark:text-gray-400">
               Pending
             </div>
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="mt-3">
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div 
-              className="bg-primary-500 h-2 rounded-full transition-all duration-1000"
-              style={{ width: `${(aiQueue.completed / (aiQueue.processing + aiQueue.completed + aiQueue.pending)) * 100}%` }}
-            />
-          </div>
-          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 text-center">
-            AI matching progress: {Math.round((aiQueue.completed / (aiQueue.processing + aiQueue.completed + aiQueue.pending)) * 100)}%
-          </p>
-        </div>
-      </div>
-
-      {/* Recent Activity */}
-      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">
-          Recent Activity
-        </p>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-400">
-              New applications
-            </span>
-            <span className="text-green-600 dark:text-green-400 font-medium">
-              +8 today
-            </span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-400">
-              Interviews scheduled
-            </span>
-            <span className="text-blue-600 dark:text-blue-400 font-medium">
-              5 this week
-            </span>
           </div>
         </div>
       </div>

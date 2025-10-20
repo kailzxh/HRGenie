@@ -102,56 +102,67 @@ const { data: companyHolidays } = await supabase.from('company_holidays').select
 
 // --- CONTROLLER FOR MANAGER VIEW (FIXED) ---
 export const getManagerViewData = async (req: AuthRequest, res: Response) => {
-    const authId = req.user?.id;
-    if (!authId) {
-        return res.status(401).json({ message: 'Authentication required.' });
-    }
+    const authId = req.user?.id;
+    if (!authId) {
+        return res.status(401).json({ message: 'Authentication required.' });
+    }
 
-    try {
+    try {
         // 1. Get the internal 'id' for the manager
-        const internalManagerId = await getInternalEmployeeId(authId);
+        const internalManagerId = await getInternalEmployeeId(authId);
 
-        // 2. Use the internal 'id' in the query
-        const { data: reports, error: reportsError } = await supabase
+        // 2. Get all direct reports' internal IDs
+        const { data: reports, error: reportsError } = await supabase
             .from('employees')
             .select('id')
-            .eq('manager_id', internalManagerId); // <-- FIX
-        if (reportsError) throw reportsError;
-        
-        // ... (rest of the function is fine)
+            .eq('manager_id', internalManagerId); 
+        if (reportsError) throw reportsError;
+        
         const reportIds = reports.map(r => r.id);
-        if (reportIds.length === 0) {
-            return res.status(200).json({ pendingApprovals: [], teamBalances: [], aiConflictAdvisor: {} });
-        }
-        // ... (all queries below use 'reportIds' which are already internal IDs, so they are fine)
-        const { data: pendingRequests, error: requestsError } = await supabase
-            .from('leave_requests')
-            .select(`*, employees!inner(name), leave_policies!inner(name, total_days, id)`)
-            .in('employee_id', reportIds)
-            .eq('status', 'pending');
-        if (requestsError) throw requestsError;
-        // ... (rest of the function is fine)
-        const pendingApprovals = [];
-        for (const p of pendingRequests) {
-            const { data: balance } = await supabase
-                .from('leave_balances')
-                .select('days_taken')
-                .eq('employee_id', p.employee_id)
-                .eq('policy_id', (p.leave_policies as any).id)
-                .single();
-            pendingApprovals.push({
-                id: p.id, employee: (p.employees as any).name,
-                type: (p.leave_policies as any).name, from: p.start_date, to: p.end_date,
-                days: p.number_of_days, reason: p.reason,
-                balance: `${balance?.days_taken ?? 0} / ${(p.leave_policies as any).total_days}`
-            });
-        }
-        res.status(200).json({ pendingApprovals, teamLeaveBalances: [], aiConflictAdvisor: {} });
-    } catch (error: any) {
-        res.status(500).json({ message: 'Error fetching manager data', error: error.message });
-    }
-};
+        if (reportIds.length === 0) {
+            return res.status(200).json({ pendingApprovals: [], teamBalances: [], aiConflictAdvisor: {} });
+        }
+        
+        // 3. Fetch pending requests - FIXED: Removed comments from SQL string
+        const { data: pendingRequests, error: requestsError } = await supabase
+            .from('leave_requests')
+            .select(`
+                *, 
+                employee_name:employees!leave_requests_employee_id_fkey(name), 
+                leave_policies!inner(name, total_days, id)
+            `)
+            .in('employee_id', reportIds)
+            .eq('status', 'pending');
+        if (requestsError) throw requestsError;
+        
+        // 4. Process pending requests
+        const pendingApprovals = [];
+        for (const p of pendingRequests) {
+            const { data: balance } = await supabase
+                .from('leave_balances')
+                .select('days_taken')
+                .eq('employee_id', p.employee_id)
+                .eq('policy_id', (p.leave_policies as any).id)
+                .single();
 
+            pendingApprovals.push({
+                id: p.id, 
+                employee: (p as any).employee_name[0]?.name || 'Unknown Employee', 
+                type: (p.leave_policies as any).name, 
+                from: p.start_date, 
+                to: p.end_date,
+                days: p.number_of_days, 
+                reason: p.reason,
+                balance: `${balance?.days_taken ?? 0} / ${(p.leave_policies as any).total_days}`
+            });
+        }
+        
+        res.status(200).json({ pendingApprovals, teamLeaveBalances: [], aiConflictAdvisor: {} });
+    } catch (error: any) {
+        console.error("Leaves Manager View Error Detail:", error);
+        res.status(500).json({ message: 'Error fetching manager data', error: 'Internal Server Error' });
+    }
+};
 // --- CONTROLLER FOR HR ADMIN VIEW (No change needed) ---
 // This controller does not seem to depend on the user's ID, so it is fine.
 // --- CONTROLLER FOR HR ADMIN VIEW (FIXED) ---

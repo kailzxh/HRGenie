@@ -11,7 +11,7 @@ import PayrollPage from '@/components/pages/PayrollPage'
 import LeavesPage from '@/components/pages/LeavesPage'
 import AttendancePage from '@/components/pages/AttendancePage'
 import PerformancePage from '@/components/pages/PerformancePage'
-import ReportsPage from '@/components/pages/ReportsPage'
+// import ReportsPage from '@/components/pages/ReportsPage'
 import PremiumBackground from '@/components/three/PremiumBackground'
 
 export type PageType = 
@@ -51,10 +51,10 @@ export default function DashboardLayout() {
       leaves: LeavesPage,
       attendance: AttendancePage,
       performance: PerformancePage,
-      reports: ReportsPage,
+      // reports: ReportsPage,
     }
-
-    const PageComponent = pageComponents[currentPage]
+    // Type assertion to tell TypeScript that currentPage will be a valid key
+    const PageComponent = pageComponents[currentPage as keyof typeof pageComponents]
     return <PageComponent />
   }
 

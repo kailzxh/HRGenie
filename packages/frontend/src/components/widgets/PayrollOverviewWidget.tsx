@@ -1,47 +1,119 @@
 'use client'
 
-import { motion } from 'framer-motion'
-import { DollarSign, TrendingUp, Calendar, Users } from 'lucide-react'
+import { motion } from 'framer-motion';
+import { DollarSign, TrendingUp, Calendar, Users } from 'lucide-react';
+import { useState, useEffect } from 'react'
+import { supabase } from '@/config/supabase'
 
-export default function PayrollOverviewWidget() {
-  const payrollData = {
-    totalPayroll: 2847350,
-    employeeCount: 1247,
-    averageSalary: 78000,
-    lastProcessed: 'Oct 1, 2024',
-    status: 'completed',
-    nextPayroll: 'Nov 1, 2024'
-  }
+interface PayrollOverviewWidgetProps {
+  payrollRuns?: Array<{
+    id: string;
+    status: string;
+    total_gross: number;
+    total_net: number;
+    employee_count: number;
+    created_at: string;
+  }>;
+}
 
-  const breakdown = [
-    {
-      category: 'Basic Salary',
-      amount: 2200000,
-      percentage: 77.3,
-      color: 'bg-blue-500'
-    },
-    {
-      category: 'Allowances',
-      amount: 425000,
-      percentage: 14.9,
-      color: 'bg-green-500'
-    },
-    {
-      category: 'Bonuses',
-      amount: 222350,
-      percentage: 7.8,
-      color: 'bg-purple-500'
-    }
-  ]
+export default function PayrollOverviewWidget({ payrollRuns }: PayrollOverviewWidgetProps) {
+  const [payrollData, setPayrollData] = useState({
+    totalPayroll: 0,
+    employeeCount: 0,
+    averageSalary: 0,
+    lastProcessed: '',
+    nextPayroll: '',
+  });
+  const [breakdown, setBreakdown] = useState<Array<{
+    category: string;
+    amount: number;
+    percentage: number;
+    color: string;
+  }>>([]);
+  // const [breakdown, setBreakdown] = useState([]) // Removed duplicate declaration
+
+  useEffect(() => {
+    const fetchPayrollData = async () => {
+      try {
+        // If payrollRuns provided, use them, otherwise fetch from database
+        let runs = payrollRuns;
+        if (!runs || runs.length === 0) {
+          const { data: payrollRunsData, error } = await supabase
+            .from('payroll_runs')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(5);
+          
+          if (payrollRunsData) runs = payrollRunsData;
+        }
+
+        if (runs && runs.length > 0) {
+          const completedRuns = runs.filter(run => run.status === 'completed');
+          const totalPayroll = completedRuns.reduce((sum, run) => sum + (run.total_gross || 0), 0);
+          const latestRun = completedRuns[0] || runs[0];
+          
+          setPayrollData({
+            totalPayroll: totalPayroll || 0,
+            employeeCount: latestRun?.employee_count || 0,
+            averageSalary: latestRun && latestRun.employee_count > 0 ? 
+              Math.round((latestRun.total_gross || 0) / latestRun.employee_count) : 0,
+            lastProcessed: latestRun?.created_at ? new Date(latestRun.created_at).toLocaleDateString() : 'Never',
+            nextPayroll: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString()
+          });
+        }
+
+        // Fetch payroll breakdown from payroll_lines
+        const { data: payrollLines, error: linesError } = await supabase
+          .from('payroll_lines')
+          .select('base_salary, allowances, bonus, overtime')
+          .limit(100); // Get recent payroll lines
+
+        if (payrollLines && payrollLines.length > 0) {
+          const totalBase = payrollLines.reduce((sum, line) => sum + (line.base_salary || 0), 0);
+          const totalAllowances = payrollLines.reduce((sum, line) => sum + (line.allowances || 0), 0);
+          const totalBonus = payrollLines.reduce((sum, line) => sum + (line.bonus || 0), 0);
+          const totalGross = totalBase + totalAllowances + totalBonus;
+          
+          if (totalGross > 0) {
+            setBreakdown([
+              { 
+                category: 'Basic Salary', 
+                amount: totalBase, 
+                percentage: Math.round((totalBase / totalGross) * 100), 
+                color: 'bg-blue-500' 
+              },
+              { 
+                category: 'Allowances', 
+                amount: totalAllowances, 
+                percentage: Math.round((totalAllowances / totalGross) * 100), 
+                color: 'bg-green-500' 
+              },
+              { 
+                category: 'Bonuses', 
+                amount: totalBonus, 
+                percentage: Math.round((totalBonus / totalGross) * 100), 
+                color: 'bg-purple-500' 
+              }
+            ]);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching payroll data:', error);
+      }
+    };
+
+    fetchPayrollData();
+  }, [payrollRuns]);
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'INR',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount)
-  }
+    }).format(amount);
+  };
+
+  const currentStatus = payrollRuns && payrollRuns.length > 0 ? payrollRuns[0].status : 'completed';
 
   return (
     <div className="card p-6">
@@ -51,11 +123,11 @@ export default function PayrollOverviewWidget() {
         </h3>
         <div className="flex items-center space-x-2">
           <div className={`w-2 h-2 rounded-full ${
-            payrollData.status === 'completed' ? 'bg-green-500' : 
-            payrollData.status === 'processing' ? 'bg-yellow-500' : 'bg-red-500'
+            currentStatus === 'completed' ? 'bg-green-500' : 
+            currentStatus === 'processing' ? 'bg-yellow-500' : 'bg-red-500'
           }`} />
           <span className="text-sm text-gray-500 capitalize">
-            {payrollData.status}
+            {currentStatus}
           </span>
         </div>
       </div>
@@ -69,7 +141,7 @@ export default function PayrollOverviewWidget() {
         >
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-white" />
+              <span className="text-white text-lg font-bold">₹</span>
             </div>
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -191,15 +263,7 @@ export default function PayrollOverviewWidget() {
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-        <button className="w-full bg-primary-500 hover:bg-primary-600 text-white py-2 px-4 rounded-lg font-medium transition-colors">
-          Process Next Payroll
-        </button>
-        <button className="w-full text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 py-2 px-4 rounded-lg font-medium transition-colors">
-          View Detailed Report
-        </button>
-      </div>
+      
     </div>
   )
 }

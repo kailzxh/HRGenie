@@ -1,7 +1,7 @@
 // frontend/src/app/api/recruitment/jobs/route.ts
 import { NextResponse } from 'next/server';
 
-const BASE_URL = 'http://localhost:5000/api/recruitment';
+const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/recruitment`;
 
 // GET /api/recruitment/jobs
 export async function GET(req: Request) {

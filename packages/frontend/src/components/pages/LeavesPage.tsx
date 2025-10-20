@@ -17,7 +17,7 @@ import { jwtDecode } from "jwt-decode"; // <-- ADD THIS IMPORT
 // ... other imports
 
 // Base URL for your backend API
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
 
 // Map icon names from the API to actual Lucide icon components
 const iconMap: { [key: string]: FC<LucideProps> } = {
@@ -79,92 +79,122 @@ export default function LeavesPage() {
   
 useEffect(() => {
     // --- Function to fetch user role ---
-    const fetchUserRoleAndSetDefaultView = async () => {
-      setIsRoleLoading(true); // Start role loading
-      const token = localStorage.getItem('supabase-auth-token');
-      if (!token) {
-        console.error("No auth token found, cannot determine role.");
-        // Handle appropriately - maybe redirect to login or default to employee
-        setUserRole('employee'); 
-        setView('employee');
-        setIsRoleLoading(false);
-        return;
-      }
+  const fetchUserRoleAndSetDefaultView = async () => {
+  setIsRoleLoading(true);
+  const token = localStorage.getItem('supabase-auth-token');
+  
+  if (!token) {
+    console.error("No auth token found, cannot determine role.");
+    setUserRole('employee');
+    setView('employee');
+    setIsRoleLoading(false);
+    return;
+  }
 
-      try {
-        // Decode the token to get the role
-        // Adjust the path (e.g., app_metadata, user_metadata) based on where Supabase/your auth stores the role
-        const decodedToken: any = jwtDecode(token);
-        const role = decodedToken?.user_metadata?.role || decodedToken?.role || 'employee'; 
-        
-        console.log("User role detected:", role); // For debugging
-        setUserRole(role);
+  try {
+    // Use the same API endpoint as your other components
+    const userData = await fetch(`${API_BASE_URL}/../api/auth/user`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    }).then(res => {
+      if (!res.ok) throw new Error('Failed to fetch user role');
+      return res.json();
+    });
+    
+    // Apply the same role mapping logic
+    const role = userData.role === 'hr' ? 'admin' : userData.role || 'employee';
+    
+    console.log("Consistent Role fetched:", role);
+    setUserRole(role);
 
-        // --- Set Default View based on Role ---
-        if (role === 'admin' || role === 'hr') {
-          setView('hr_admin');
-        } else if (role === 'manager') {
-          setView('manager');
-        } else {
-          setView('employee');
-        }
-        // --- End Set Default View ---
+    // Set default view based on role (same as your other component)
+    if (role === 'admin' || role === 'hr') {
+      setView('hr_admin');
+    } else if (role === 'manager') {
+      setView('manager');
+    } else {
+      setView('employee');
+    }
 
-      } catch (error) {
-        console.error("Error decoding token or fetching user role:", error);
-        setUserRole('employee'); // Default to employee on error
-        setView('employee');
-      } finally {
-         setIsRoleLoading(false); // Finish role loading
-      }
-    };
+  } catch (error) {
+    console.error("Error fetching user role from API:", error);
+    // Fallback to JWT decoding if API fails
+    try {
+      const decodedToken: any = jwtDecode(token);
+      const fallbackRole = decodedToken?.user_metadata?.role || 'employee';
+      console.log("Using fallback role from JWT:", fallbackRole);
+      setUserRole(fallbackRole);
+      setView('employee');
+    } catch (jwtError) {
+      console.error("JWT fallback also failed:", jwtError);
+      setUserRole('employee');
+      setView('employee');
+    }
+  } finally {
+    setIsRoleLoading(false);
+  }
+};
 
     fetchUserRoleAndSetDefaultView(); // Call it only once on mount
 
   }, []);
   useEffect(() => {
-    // Only fetch data if the role has been determined and is not loading
-    if (!isRoleLoading && userRole) { 
-      const fetchDataForView = async () => {
-        setIsLoading(true); // Start data loading
-        try {
-          // Check if the user is allowed to access the current view based on their role
-          if (view === 'employee') {
-             await fetchEmployeeData();
-          } else if (view === 'manager' && (userRole === 'manager' || userRole === 'admin' || userRole === 'hr')) {
-             await fetchManagerData();
-          } else if (view === 'hr_admin' && (userRole === 'admin' || userRole === 'hr')) {
-             await fetchHrAdminData();
-          } else {
-             console.warn(`User role '${userRole}' does not have access to view '${view}'. Defaulting to employee view.`);
-             setView('employee'); // Force back to employee view if somehow they switch to an invalid one
-             await fetchEmployeeData(); // Fetch employee data as fallback
-          }
-        } catch (error) {
-          console.error(`Failed to fetch data for ${view} view:`, error);
-          // Handle error appropriately, maybe show an error message
-        } finally {
-          setIsLoading(false); // Finish data loading
-        }
-      };
-      fetchDataForView();
-    }
-  }, [view, userRole, isRoleLoading]);
-  useEffect(() => {
+  // Only fetch data if the role has been determined and is not loading
+  if (!isRoleLoading && userRole) { 
     const fetchDataForView = async () => {
-      setIsLoading(true);
+      setIsLoading(true); // Start data loading
       try {
-        if (view === 'employee') await fetchEmployeeData();
-        else if (view === 'manager') await fetchManagerData();
-        else if (view === 'hr_admin') await fetchHrAdminData();
+        // Check if the user is allowed to access the current view based on their role
+        if (view === 'employee') {
+          // ✅ Employee view: accessible to ALL roles
+          await fetchEmployeeData();
+        } else if (view === 'manager') {
+          // ✅ Manager view: ONLY for managers (not admin/hr)
+          if (userRole === 'manager') {
+            await fetchManagerData();
+          } else {
+            console.warn(`User role '${userRole}' does not have access to manager view. Defaulting to employee view.`);
+            setView('employee');
+            await fetchEmployeeData();
+          }
+        } else if (view === 'hr_admin') {
+          // ✅ HR Admin view: ONLY for admin/hr roles (not managers)
+          if (userRole === 'admin' || userRole === 'hr') {
+            await fetchHrAdminData();
+          } else {
+            console.warn(`User role '${userRole}' does not have access to HR admin view. Defaulting to employee view.`);
+            setView('employee');
+            await fetchEmployeeData();
+          }
+        } else {
+          // Fallback for any unknown view
+          console.warn(`Unknown view '${view}'. Defaulting to employee view.`);
+          setView('employee');
+          await fetchEmployeeData();
+        }
       } catch (error) {
-        console.error("Failed to fetch data:", error);
+        console.error(`Failed to fetch data for ${view} view:`, error);
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Finish data loading
       }
     };
     fetchDataForView();
-  }, [view]);
+  }
+}, [view, userRole, isRoleLoading]);
+  // useEffect(() => {
+  //   const fetchDataForView = async () => {
+  //     setIsLoading(true);
+  //     try {
+  //       if (view === 'employee') await fetchEmployeeData();
+  //       else if (view === 'manager') await fetchManagerData();
+  //       else if (view === 'hr_admin') await fetchHrAdminData();
+  //     } catch (error) {
+  //       console.error("Failed to fetch data:", error);
+  //     } finally {
+  //       setIsLoading(false);
+  //     }
+  //   };
+  //   fetchDataForView();
+  // }, [view]);
 
   // --- Data Fetching Functions ---
  const fetchEmployeeData = async () => {
@@ -343,22 +373,22 @@ useEffect(() => {
      <div className="space-y-6">
      {/* Only render buttons after role has been determined */}
     {!isRoleLoading && userRole && (
-         <div className="flex space-x-2">
+  <div className="flex space-x-2">
     {/* Employee button is always visible */}
     <button
       onClick={() => setView('employee')}
       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${view === 'employee' ? 'bg-primary-500 text-white shadow-md hover:bg-primary-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
     >
-      My View {/* Changed label */}
+      My View
     </button>
 
-    {/* Manager button: Only show if role is 'manager', 'admin', or 'hr' */}
-    {(userRole === 'manager' ) && (
+    {/* ✅ FIXED: Manager button: Only show if role is EXACTLY 'manager' */}
+    {userRole === 'manager' && (
       <button
         onClick={() => setView('manager')}
         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${view === 'manager' ? 'bg-primary-500 text-white shadow-md hover:bg-primary-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
       >
-        Manager View {/* Changed label */}
+        Manager View
       </button>
     )}
 
@@ -368,7 +398,7 @@ useEffect(() => {
         onClick={() => setView('hr_admin')}
         className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${view === 'hr_admin' ? 'bg-primary-500 text-white shadow-md hover:bg-primary-600' : 'bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
       >
-        HR Admin View {/* Changed label */}
+        HR Admin View
       </button>
     )}
   </div>
@@ -437,14 +467,14 @@ useEffect(() => {
             </div>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card p-6">
+            {/* <div className="card p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Team Availability Calendar</h2>
               <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                 <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
                 <p>Team calendar view coming soon...</p>
                 <p className="text-sm">See who's on leave to plan your work better.</p>
               </div>
-            </div>
+            </div> */}
             <div className="card p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Company Holiday List</h2>
               <ul className="space-y-2">
@@ -682,8 +712,8 @@ useEffect(() => {
       
       {/* Employee ID Input */}
      <input 
-  type="email" 
-  placeholder="Employee Email" // <-- CHANGE THIS PLACEHOLDER
+  type="text" 
+  placeholder="Employee ID" // <-- CHANGE THIS PLACEHOLDER
   value={manualAdjustmentForm.employeeId} 
   onChange={(e) => setManualAdjustmentForm(prev => ({...prev, employeeId: e.target.value}))} 
   className="p-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 flex-grow sm:flex-grow-0" 

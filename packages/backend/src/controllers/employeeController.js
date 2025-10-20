@@ -174,7 +174,25 @@ const updateEmployee = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+const getEmployeeByEmail = async (req, res) => {
+  try {
+    const { email } = req.params;
+    
+    const result = await db.query(
+      'SELECT * FROM employees WHERE email = $1',
+      [email]
+    );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Employee not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching employee by email:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
 const deleteEmployee = async (req, res) => {
   try {
     const { id } = req.params;
@@ -200,5 +218,6 @@ module.exports = {
   getEmployee,
   createEmployee,
   updateEmployee,
-  deleteEmployee
+  deleteEmployee,
+  getEmployeeByEmail
 };
