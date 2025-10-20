@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 
 const router = Router();
-
+const loginUrl = process.env.FRONTEND_URL!;
 // Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -107,7 +107,7 @@ router.post('/reset-password', async (req: Request, res: Response) => {
 
     // Supabase reset password flow
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'http://localhost:3000/login',
+      redirectTo: `${loginUrl}/login`,
     });
 
     if (error) throw error;
