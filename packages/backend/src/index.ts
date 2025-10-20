@@ -12,10 +12,10 @@ import attendanceRoutes from './routes/attendanceRoutes';
 import performanceRoutes from './routes/performanceeRoutes';
 import dashboardRoutes from './routes/dashboard';
 const app = express();
-const PORT = process.env.PORT || 5000;
 import dotenv from 'dotenv';
 
 dotenv.config(); // ✅ Load .env variables
+const PORT = process.env.PORT || 5000;
 // CORS configuration
 // If frontend is on localhost:3000
 app.use(
