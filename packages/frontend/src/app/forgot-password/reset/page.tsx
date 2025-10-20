@@ -28,7 +28,7 @@ export default function ResetPasswordPage() {
     try {
       const { error } = await supabase.auth.updateUser(
         { password: password },
-        { accessToken }
+        { /* No options needed here, accessToken is handled by the session */ }
       )
 
       if (error) throw error
