@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { Clock, Check, X, XCircle } from 'lucide-react'
 import type { FC } from 'react'
 import type { RegularizationRequest } from '@/types'

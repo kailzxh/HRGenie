@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/config/supabase';
 // At the top of LoginPage.tsx
 import { useAuthStore } from '@/store/authStore';
+export const dynamic = 'force-dynamic';
 
 
 export default function LoginPage() {

@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { motion } from 'framer-motion'
 import { Calendar, Coffee, Heart, Umbrella, LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'

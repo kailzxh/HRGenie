@@ -1,15 +1,22 @@
+// client-side Supabase (browser)
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+export const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// server-side Supabase (API routes, server functions)
+export const supabaseServer = createClient(
+  process.env.SUPABASE_URL!,         // non-public URL
+  process.env.SUPABASE_SERVICE_KEY!  // server-only key
+);
 
-export const supabaseServer = createClient(supabaseUrl, supabaseAnonKey);
-
-
-export const supabaseOnboarding = createClient(supabaseUrl, supabaseAnonKey, {
-  db: {
-    schema: 'onboarding',
-  },
-})
+// server-side Supabase for onboarding schema
+export const supabaseOnboarding = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!,
+  {
+    db: { schema: 'onboarding' }
+  }
+);

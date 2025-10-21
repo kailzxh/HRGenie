@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { motion } from 'framer-motion'
 import {
   Calendar, Plus, Clock, CheckCircle, XCircle, AlertTriangle, Users,

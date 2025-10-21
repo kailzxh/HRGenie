@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { motion } from 'framer-motion';
 import { DollarSign, TrendingUp, Calendar, Users } from 'lucide-react';
 import { useState, useEffect } from 'react'

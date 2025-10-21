@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { useState, useMemo, FC } from 'react'
 import { ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, parseISO, addMonths, subMonths } from 'date-fns'

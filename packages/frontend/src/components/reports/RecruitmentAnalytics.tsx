@@ -1,5 +1,5 @@
 'use client';
-
+export const dynamic = 'force-dynamic';
 import { Card, CardContent } from '@/components/ui/card';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, FunnelChart, Funnel, PieChart, Pie, Cell,PieLabelRenderProps } from 'recharts';
 import { Download } from 'lucide-react';

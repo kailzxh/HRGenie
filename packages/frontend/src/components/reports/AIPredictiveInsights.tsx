@@ -1,5 +1,5 @@
 'use client';
-
+export const dynamic = 'force-dynamic';
 import { Card } from '@/components/ui/card';
 import { AlertTriangle, TrendingUp, Brain, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';

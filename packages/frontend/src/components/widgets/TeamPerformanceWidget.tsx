@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { supabase } from '@/config/supabase';
 import { motion } from 'framer-motion'
 import { Target, Award, TrendingUp, Users, Clock } from 'lucide-react'

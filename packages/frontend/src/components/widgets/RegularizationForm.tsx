@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { useState, FC } from 'react'
 import { X } from 'lucide-react'
 import { format } from 'date-fns'

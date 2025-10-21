@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { BookOpen, ChevronRight, Target } from 'lucide-react'

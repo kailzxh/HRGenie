@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { motion } from 'framer-motion'
 import { Clock, CheckCircle, AlertCircle, TrendingUp, LucideProps } from 'lucide-react'
 import { FC } from 'react'

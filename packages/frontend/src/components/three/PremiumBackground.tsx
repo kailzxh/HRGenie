@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useTheme } from '@/components/providers/ThemeProvider'

@@ -1,5 +1,5 @@
 'use client'
-
+export const dynamic = 'force-dynamic';
 import { createContext, useContext, useEffect, useState } from 'react'
 
 type Theme = 'light' | 'dark' | 'system'
