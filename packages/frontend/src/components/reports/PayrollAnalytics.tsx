@@ -1,7 +1,7 @@
 'use client';
 
-import { Card } from '@/components/ui/card';
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, BarChart, Bar, BoxPlot } from 'recharts';
+import { Card, CardContent } from '@/components/ui/card';
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, BarChart, Bar} from 'recharts';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -103,18 +103,33 @@ export default function PayrollAnalytics({
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BoxPlot
-                layout="vertical"
-                data={salaryDistribution}
-                dataKey="department"
-                minDataKey="min"
-                q1DataKey="q1"
-                medianDataKey="median"
-                q3DataKey="q3"
-                maxDataKey="max"
-                fill="#8884d8"
-              />
+              <BarChart data={salaryDistribution} layout="vertical">
+                <XAxis type="number" tickFormatter={formatCurrency} />
+                <YAxis type="category" dataKey="department" width={100} />
+                <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                <Bar dataKey="median" fill="#8884d8" name="Median Salary" />
+                {/* You can add more bars for min/max/quartiles if needed,
+                    but a simple bar for median is often sufficient for a quick overview.
+                    For a true box plot, a custom component would be needed.
+                    Here's an example of how you might represent ranges with additional bars:
+                */}
+                {/*
+                <Bar dataKey="q1" fill="#82ca9d" name="1st Quartile" />
+                <Bar dataKey="q3" fill="#ffc658" name="3rd Quartile" />
+                */}
+              </BarChart>
             </ResponsiveContainer>
+            <div className="text-center text-sm text-gray-500 dark:text-gray-400 mt-2">
+              <p>Note: This chart displays median salary by department. For a full box plot visualization, a custom Recharts component would be required.</p>
+              <p>Min/Max/Quartile data is available but not fully visualized in this standard bar chart.</p>
+              <ul className="list-disc list-inside mt-2">
+                {salaryDistribution.map((data, index) => (
+                  <li key={index}>
+                    <strong>{data.department}:</strong> Min {formatCurrency(data.min)}, Q1 {formatCurrency(data.q1)}, Median {formatCurrency(data.median)}, Q3 {formatCurrency(data.q3)}, Max {formatCurrency(data.max)}
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </Card>
       </div>
