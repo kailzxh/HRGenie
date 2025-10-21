@@ -1,23 +1,21 @@
-// app/api/auth/user/route.ts
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
-)
+ // optional if you have typed schema
 
 export async function GET(req: Request) {
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
+  const supabase = createRouteHandlerClient({ cookies })
 
-    if (!session) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
-    return NextResponse.json({ user: session.user })
-  } catch (error) {
+  const { data: { session }, error } = await supabase.auth.getSession()
+  
+  if (error) {
     console.error(error)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
+
+  if (!session) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
+
+  return NextResponse.json({ user: session.user })
 }
