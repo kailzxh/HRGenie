@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Backend for AI interviews",
   "main": "dist/index.js",
-   
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -35,10 +34,10 @@
     "pdfjs-dist": "^3.11.174"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
+    "@types/cors": "^2.8.19",
     "@types/express": "^4.17.23",
     "@types/multer": "^2.0.0",
-    "@types/node": "^20.19.21",
+    "@types/node": "^20.19.23",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
   }
