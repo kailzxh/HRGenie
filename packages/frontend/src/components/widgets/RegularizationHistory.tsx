@@ -52,7 +52,7 @@ export const RegularizationHistory: FC<RegularizationHistoryProps> = ({ requests
               <div className="flex justify-between items-start mb-1.5 gap-2">
                 <div>
                   <p className="font-medium text-sm text-gray-800 dark:text-white">
-                    {format(parseISO(request.date), 'MMM d, yyyy')}
+                    {format(parseISO(request.date || new Date().toISOString()), 'MMM d, yyyy')}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {/* Display requested times if they exist */}
