@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 5000;
 // If frontend is on localhost:3000
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL, // frontend URL
+    origin:  ['http://localhost:3000','https://hr-genie-jrta.vercel.app', process.env.FRONTEND_URL!,],
     credentials: true, // allow cookies/auth headers
   })
 );
