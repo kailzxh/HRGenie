@@ -3,13 +3,13 @@
   "version": "1.0.0",
   "description": "Backend for AI interviews",
   "main": "dist/index.js",
-   "scripts": {
-  "start": "node dist/index.js",
-  "dev": "ts-node-dev --respawn src/index.ts",
-  "build": "tsc",
-  "test": "jest",
-  "create-admin": "ts-node src/scripts/create-initial-admin.ts"
-},
+   
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "vercel-build": "tsc"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

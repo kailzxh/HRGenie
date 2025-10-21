@@ -1,3 +1,16 @@
+// ✅ Polyfill for Promise.withResolvers for Node.js < 21
+if (!Promise.withResolvers) {
+  Promise.withResolvers = function <T>() {
+    let resolve: (value: T | PromiseLike<T>) => void;
+    let reject: (reason?: any) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve: resolve!, reject: reject! };
+  };
+}
+
 class DOMMatrix {
   constructor() {}
 }
@@ -12,31 +25,20 @@ import * as cheerio from "cheerio";
 
 // ✅ Correct import for pdfjs-dist (use the main import)
 import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
-// ✅ Use legacy build
 
 dotenv.config();
-const base_url = process.env.BASE_URL;
 const app = express();
-// app.use(cors({ origin: `${base_url}` }));
-app.use(express.json({ limit: "10mb" }));
 
-// --- API Keys and Clients ---
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-const GITHUB_ACCESS_TOKEN = process.env.GITHUB_ACCESS_TOKEN;
-
-if (!GOOGLE_API_KEY || typeof GITHUB_ACCESS_TOKEN !== "string") {
-  console.error("FATAL: Missing GOOGLE_API_KEY or GITHUB_ACCESS_TOKEN in .env");
-  process.exit(1);
-}
+// --- Middleware ---
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://0wqvpl8p-5173.inc1.devtunnels.ms", // add other dev tunnel URLs if needed
+  "https://0wqvpl8p-5173.inc1.devtunnels.ms",
+  "https://your-frontend-app.vercel.app" // Add your actual frontend Vercel URL
 ];
 
-// Use a single CORS middleware
 app.use(cors({
   origin: function(origin, callback) {
-    if (!origin) return callback(null, true); // allow server-to-server requests
+    if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -47,8 +49,17 @@ app.use(cors({
   credentials: true,
 }));
 
-// Ensure OPTIONS requests are handled
-app.options("*", cors({ origin: allowedOrigins, credentials: true }));
+app.use(express.json({ limit: "10mb" }));
+
+// --- API Keys and Clients ---
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+const GITHUB_ACCESS_TOKEN = process.env.GITHUB_ACCESS_TOKEN;
+
+if (!GOOGLE_API_KEY || !GITHUB_ACCESS_TOKEN) {
+  console.error("FATAL: Missing GOOGLE_API_KEY or GITHUB_ACCESS_TOKEN in .env");
+  process.exit(1);
+}
+
 const octokit = new Octokit({ auth: GITHUB_ACCESS_TOKEN });
 
 // Gemini model
@@ -203,9 +214,8 @@ app.post("/api/analyze-profile", async (req: Request, res: Response) => {
 });
 
 // =================================================================================
-// --- HR INTERVIEW ENDPOINT (UNCHANGED) ---
+// --- HR INTERVIEW ENDPOINT ---
 // =================================================================================
-
 app.post("/api/generate-response", async (req: Request, res: Response) => {
   const { jobTitle, jobDescription, previousTranscript = [], proctoringEvents = [], isFinalAnalysis = false } = req.body;
 
@@ -214,7 +224,7 @@ app.post("/api/generate-response", async (req: Request, res: Response) => {
   let prompt: string;
 
   if (isFinalAnalysis) {
-    const tabSwitches = proctoringEvents.filter((e: any) => e.type === "tab_switch_away").length;
+    const tabSwitches = (proctoringEvents as any[]).filter((e: any) => e.type === "tab_switch_away").length;
     prompt = `You are a senior HR hiring manager providing a harsh but fair evaluation for the "${jobTitle}" position. PROCTORING DATA: The candidate switched tabs ${tabSwitches} time(s). A high number (>1) should negatively impact the score. TRANSCRIPT: ${JSON.stringify(previousTranscript)} INSTRUCTIONS: Return a single, minified JSON object with NO markdown. It must have two keys: "hr_interview_summary" (a concise, critical text summary) and "hr_interview_score" (an integer score from 0 to 100).`;
   } else {
     prompt = `You are an expert AI HR interviewer for the "${jobTitle}" position. Job description: ${jobDescription}. Your goal is to have a natural, flowing conversation. Based on the transcript so far, ask the next most logical question. RULES: 1. If the candidate's last answer was detailed, ask about a *different* core competency. 2. If the candidate's last answer was short or vague, ask a clarifying follow-up question. 3. Do not repeat a question. Transcript: ${JSON.stringify(previousTranscript)} Return ONLY the single, concise question text.`;
@@ -231,9 +241,8 @@ app.post("/api/generate-response", async (req: Request, res: Response) => {
 });
 
 // =================================================================================
-// --- TECHNICAL INTERVIEW ENDPOINTS (UNCHANGED) ---
+// --- TECHNICAL INTERVIEW ENDPOINTS ---
 // =================================================================================
-
 app.post("/api/generate-technical-assessment", async (req: Request, res: Response) => {
   const { jobTitle, jobDescription } = req.body;
 
@@ -270,23 +279,23 @@ app.post("/api/analyze-code", async (req: Request, res: Response) => {
 app.post("/api/finish-technical-interview", async (req: Request, res: Response) => {
   const { jobTitle, transcript, proctoringEvents } = req.body;
 
-  const tabSwitches = proctoringEvents.filter((e: any) => e.type === "tab_switch_away").length;
-  const copyEvents = proctoringEvents.filter((e: any) => e.type === "copy").length;
-  const pasteEvents = proctoringEvents.filter((e: any) => e.type === "paste").length;
+  const tabSwitches = (proctoringEvents as any[]).filter((e: any) => e.type === "tab_switch_away").length;
+  const copyEvents = (proctoringEvents as any[]).filter((e: any) => e.type === "copy").length;
+  const pasteEvents = (proctoringEvents as any[]).filter((e: any) => e.type === "paste").length;
 
   console.log("📊 Calculating technical score...");
 
   // Define types for clarity and type safety
   interface Answer {
     questionIndex: number;
-    answer?: string; // For aptitude questions
-    code?: string; // For coding challenges
-    passedAllTests?: boolean; // Optional, if available from code analysis
+    answer?: string;
+    code?: string;
+    passedAllTests?: boolean;
   }
 
   interface Question {
     type: 'aptitude' | 'coding';
-    correctAnswer?: string; // For aptitude questions
+    correctAnswer?: string;
   }
 
   // --- STEP 1: Flatten answers from transcript ---
@@ -307,13 +316,13 @@ app.post("/api/finish-technical-interview", async (req: Request, res: Response) 
   // --- STEP 3: Weighted scoring ---
   const aptitudeWeight = 1;
   const codingWeight = 5;
-  const totalPossible = totalAptitude * aptitudeWeight + 2 * codingWeight; // 10 + 10 = 20
+  const totalPossible = totalAptitude * aptitudeWeight + 2 * codingWeight;
 
   let rawScore = 0;
   rawScore += correctAptitudeCount * aptitudeWeight;
   codingSubmissions.forEach(sub => {
-    if (sub.code && sub.code.trim().length > 0) rawScore += codingWeight * 0.6; // assume 60% for valid attempt
-    if (sub.passedAllTests) rawScore += codingWeight * 1.0; // optional if passedAllTests available
+    if (sub.code && sub.code.trim().length > 0) rawScore += codingWeight * 0.6;
+    if (sub.passedAllTests) rawScore += codingWeight * 1.0;
   });
 
   let technicalScore = Math.round((rawScore / totalPossible) * 100);
@@ -324,14 +333,13 @@ app.post("/api/finish-technical-interview", async (req: Request, res: Response) 
   if (technicalScore < 0) technicalScore = 0;
 
   // --- STEP 5: Auto-zero check ---
- const hasAnswers = aptitudeAnswers.some(a => a.answer && a.answer.trim().length > 0);
-const hasCode = codingSubmissions.some(a => a.code && a.code.trim().length > 0);
+  const hasAnswers = aptitudeAnswers.some(a => a.answer && a.answer.trim().length > 0);
+  const hasCode = codingSubmissions.some(a => a.code && a.code.trim().length > 0);
 
   if (!hasAnswers && !hasCode) {
     console.log("🚨 No valid answers or code submissions — assigning score 0");
     return res.json({
-      technical_interview_summary:
-        "No answers or code submissions were provided. Automatic disqualification.",
+      technical_interview_summary: "No answers or code submissions were provided. Automatic disqualification.",
       technical_interview_score: 0
     });
   }
@@ -355,19 +363,42 @@ Return a single JSON object with:
   try {
     const generated = await generateText(prompt);
     const aiResult = JSON.parse(generated);
-    aiResult.technical_interview_score = technicalScore; // ensure score matches computed
+    aiResult.technical_interview_score = technicalScore;
     res.json(aiResult);
   } catch (err: any) {
     console.error("❌ Gemini failed, fallback to computed score");
     res.json({
-      technical_interview_summary:
-        "Gemini summary unavailable. Fallback to computed score.",
+      technical_interview_summary: "Gemini summary unavailable. Fallback to computed score.",
       technical_interview_score: technicalScore
     });
   }
 });
 
+// Health check endpoint
+app.get("/", (req: Request, res: Response) => {
+  res.json({ 
+    message: "Server is running!", 
+    timestamp: new Date().toISOString(),
+    status: "OK"
+  });
+});
 
-// --- Server Start ---
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`🚀 Server is on fire at http://localhost:${PORT}`));
+// Handle 404
+app.use((req: Request, res: Response) => {
+  res.status(404).json({ message: "Route not found" });
+});
+
+// Error handling middleware
+app.use((err: any, req: Request, res: Response, next: any) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ message: "Internal server error", error: err.message });
+});
+
+// Export for Vercel serverless
+export default app;
+
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => console.log(`🚀 Server is running on http://localhost:${PORT}`));
+}
