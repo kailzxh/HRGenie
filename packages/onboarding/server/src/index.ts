@@ -1,15 +1,15 @@
 // ✅ Polyfill for Promise.withResolvers for Node.js < 21
-if (!Promise.withResolvers) {
-  Promise.withResolvers = function <T>() {
-    let resolve: (value: T | PromiseLike<T>) => void;
-    let reject: (reason?: any) => void;
-    const promise = new Promise<T>((res, rej) => {
-      resolve = res;
-      reject = rej;
-    });
-    return { promise, resolve: resolve!, reject: reject! };
-  };
-}
+// if (!Promise.withResolvers) {
+//   Promise.withResolvers = function <T>() {
+//     let resolve: (value: T | PromiseLike<T>) => void;
+//     let reject: (reason?: any) => void;
+//     const promise = new Promise<T>((res, rej) => {
+//       resolve = res;
+//       reject = rej;
+//     });
+//     return { promise, resolve: resolve!, reject: reject! };
+//   };
+// }
 
 class DOMMatrix {
   constructor() {}
