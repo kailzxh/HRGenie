@@ -247,72 +247,72 @@ useEffect(() => {
     setAiAbsenteeismForecaster(data.aiAbsenteeismForecaster ?? []);
   };
 
-  // --- Handler Functions ---
-  const handleLeaveFormChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value, type } = e.target;
-    if (type === 'file') {
-      const files = (e.target as HTMLInputElement).files;
-      setLeaveForm(prev => ({ ...prev, document: files ? files[0] : null }));
-    } else {
-      setLeaveForm(prev => ({ ...prev, [name]: value }));
-    }
-    if (name === 'leaveType') {
-      setLeavePolicyTooltip(leavePolicies[value] || '');
-    }
-  };
-
- const handleApplyLeaveSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const token = localStorage.getItem('supabase-auth-token');
-    if (!token) return console.error("No auth token found.");
-
-    // --- REMOVED ---
-    // const formData = new FormData();
-    // Object.entries(leaveForm).forEach(([key, value]) => {
-    //   if (value) formData.append(key, value as string | Blob);
-    // });
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/leaves/apply`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          // --- ADD THIS HEADER ---
-          'Content-Type': 'application/json' 
-        },
-        // --- CHANGE THE BODY ---
-        body: JSON.stringify(leaveForm) // Send the form state directly as JSON
-      });
-
-      if (!response.ok) {
-        // Log the server's error message for better debugging
-        const errorData = await response.json();
-        console.error('Server error:', errorData.error || errorData.message || 'Failed to submit');
-        throw new Error('Failed to submit leave application');
+    // --- Handler Functions ---
+    const handleLeaveFormChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      const { name, value, type } = e.target;
+      if (type === 'file') {
+        const files = (e.target as HTMLInputElement).files;
+        setLeaveForm(prev => ({ ...prev, document: files ? files[0] : null }));
+      } else {
+        setLeaveForm(prev => ({ ...prev, [name]: value }));
       }
+      if (name === 'leaveType') {
+        setLeavePolicyTooltip(leavePolicies[value] || '');
+      }
+    };
 
-      setIsApplyLeaveModalOpen(false);
-      fetchEmployeeData();
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  const handleApplyLeaveSubmit = async (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const token = localStorage.getItem('supabase-auth-token');
+      if (!token) return console.error("No auth token found.");
 
-  const handleApproveReject = async (id: number | string, status: LeaveStatus) => {
-    const token = localStorage.getItem('supabase-auth-token');
-    if (!token) return console.error("No auth token found.");
-    try {
-      const response = await fetch(`${API_BASE_URL}/leaves/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ requestId: id, status })
-      });
-      if (!response.ok) throw new Error('Action failed');
-      fetchManagerData();
-    } catch (error) {
-      console.error(`Failed to ${status} request:`, error);
-    }
-  };
+      // --- REMOVED ---
+      // const formData = new FormData();
+      // Object.entries(leaveForm).forEach(([key, value]) => {
+      //   if (value) formData.append(key, value as string | Blob);
+      // });
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/leaves/apply`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            // --- ADD THIS HEADER ---
+            'Content-Type': 'application/json' 
+          },
+          // --- CHANGE THE BODY ---
+          body: JSON.stringify(leaveForm) // Send the form state directly as JSON
+        });
+
+        if (!response.ok) {
+          // Log the server's error message for better debugging
+          const errorData = await response.json();
+          console.error('Server error:', errorData.error || errorData.message || 'Failed to submit');
+          throw new Error('Failed to submit leave application');
+        }
+
+        setIsApplyLeaveModalOpen(false);
+        fetchEmployeeData();
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    const handleApproveReject = async (id: number | string, status: LeaveStatus) => {
+      const token = localStorage.getItem('supabase-auth-token');
+      if (!token) return console.error("No auth token found.");
+      try {
+        const response = await fetch(`${API_BASE_URL}/leaves/action`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ requestId: id, status })
+        });
+        if (!response.ok) throw new Error('Action failed');
+        fetchManagerData();
+      } catch (error) {
+        console.error(`Failed to ${status} request:`, error);
+      }
+    };
 
   // --- ✅ ADDED: Handlers for HR Admin Forms ---
   const handleAddHolidaySubmit = async (e: FormEvent<HTMLFormElement>) => {
