@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 import { motion } from 'framer-motion'
 import { Users, Eye, MessageSquare, CheckCircle, LucideIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { supabaseOnboarding } from '@/config/supabase'
+import { supabaseOnboarding } from '@/config/supabaseServer'
 
 interface RecruitmentFunnelWidgetProps {
   newApplicants?: number;

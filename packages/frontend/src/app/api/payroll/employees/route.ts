@@ -1,6 +1,6 @@
 // src/app/api/payroll/employees/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseServer } from '@/config/supabase';
+import { supabaseServer } from '@/config/supabaseServer';
 
 export async function GET(req: NextRequest) {
   try {
