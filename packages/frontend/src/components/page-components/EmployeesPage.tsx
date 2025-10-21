@@ -70,7 +70,18 @@ export default function EmployeesPage() {
 
   const [showForm, setShowForm] = useState(false)
   const [editEmployee, setEditEmployee] = useState<Employee | null>(null)
-  const [formData, setFormData] = useState<Partial<Employee>>({})
+  const [formData, setFormData] = useState({
+  name: '',
+  email: '',
+  phone: '',
+  position: '',
+  department: '',
+  location: '',
+  role: 'employee', // Default value
+  status: 'active', // Default value
+  salary: 0,
+  joining_date: new Date().toISOString().split('T')[0] // Today's date
+})
 
   const [viewEmployee, setViewEmployee] = useState<Employee | null>(null)
   const [showViewDialog, setShowViewDialog] = useState(false)
@@ -164,35 +175,80 @@ export default function EmployeesPage() {
     
     return employees
   }
+const handleSave = async () => {
+  try {
+    const token = await getAccessToken()
+    const method = editEmployee ? 'PUT' : 'POST'
+    const url = editEmployee
+      ? `${API_BASE_URL}/employees/${editEmployee.id}`
+      : `${API_BASE_URL}/employees`
 
-  const handleSave = async () => {
-    try {
-      const token = await getAccessToken()
-      const method = editEmployee ? 'PUT' : 'POST'
-      const url = editEmployee
-        ? `${API_BASE_URL}/employees/${editEmployee.id}`
-        : `${API_BASE_URL}/employees`
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(formData)
-      })
-
-      if (!res.ok) throw new Error('Failed to save employee')
-      toast.success(editEmployee ? 'Employee updated' : 'Employee added')
-      setShowForm(false)
-      setEditEmployee(null)
-      setFormData({})
-      fetchEmployees()
-    } catch (err) {
-      console.error(err)
-      toast.error('Failed to save employee')
+    // Clean the data before sending
+    const cleanedData = {
+      ...formData,
+      role: formData.role || 'employee', // Ensure role is never empty
+      status: formData.status || 'active' // Ensure status is never empty
     }
+
+    // Remove any empty strings that might cause validation issues
+    Object.keys(cleanedData).forEach(key => {
+      if (cleanedData[key as keyof typeof cleanedData] === '') {
+        delete cleanedData[key as keyof typeof cleanedData]
+      }
+    })
+
+    console.log('📤 Sending CLEANED employee data:', cleanedData)
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(cleanedData)
+    })
+
+    const responseText = await res.text()
+    console.log('📥 Raw server response:', {
+      status: res.status,
+      statusText: res.statusText,
+      body: responseText
+    })
+
+    if (!res.ok) {
+      let errorDetails = responseText
+      try {
+        const errorData = JSON.parse(responseText)
+        errorDetails = JSON.stringify(errorData, null, 2)
+      } catch (e) {}
+      
+      throw new Error(`Server returned ${res.status}: ${res.statusText}\nResponse: ${errorDetails}`)
+    }
+
+    const result = JSON.parse(responseText)
+    console.log('✅ Employee saved successfully:', result)
+    
+    toast.success(editEmployee ? 'Employee updated' : 'Employee added')
+    setShowForm(false)
+    setEditEmployee(null)
+    setFormData({ // Reset form data to initial empty state
+      name: '',
+      email: '',
+      phone: '',
+      position: '',
+      department: '',
+      location: '',
+      role: 'employee',
+      status: 'active',
+      salary: 0,
+      joining_date: new Date().toISOString().split('T')[0]
+    });
+    fetchEmployees()
+  } catch (err: any) {
+    console.error('❌ Full error details:', err)
+    toast.error(err.message || 'Failed to save employee')
   }
+}
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this employee?')) return
@@ -286,7 +342,18 @@ export default function EmployeesPage() {
               onClick={() => {
                 setShowForm(true)
                 setEditEmployee(null)
-                setFormData({})
+                setFormData({ // Reset form to its initial state
+                  name: '',
+                  email: '',
+                  phone: '',
+                  position: '',
+                  department: '',
+                  location: '',
+                  role: 'employee',
+                  status: 'active',
+                  salary: 0,
+                  joining_date: new Date().toISOString().split('T')[0]
+                });
               }}
             >
               <Plus className="w-4 h-4 mr-2" /> Add Employee
@@ -422,7 +489,18 @@ export default function EmployeesPage() {
                     variant="ghost"
                     onClick={() => {
                       setEditEmployee(emp)
-                      setFormData(emp)
+                      setFormData({
+                        name: emp.name,
+                        email: emp.email,
+                        phone: emp.phone || '', // Ensure phone is a string
+                        position: emp.position,
+                        department: emp.department,
+                        location: emp.location,
+                        role: emp.role,
+                        status: emp.status,
+                        salary: emp.salary || 0, // Ensure salary is a number
+                        joining_date: emp.joining_date || new Date().toISOString().split('T')[0] // Ensure joining_date is a string
+                      })
                       setShowForm(true)
                     }}
                   >
@@ -489,7 +567,18 @@ export default function EmployeesPage() {
                         variant="ghost"
                         onClick={() => {
                           setEditEmployee(emp)
-                          setFormData(emp)
+                          setFormData({
+                            name: emp.name,
+                            email: emp.email,
+                            phone: emp.phone || '', // Ensure phone is a string
+                            position: emp.position,
+                            department: emp.department,
+                            location: emp.location,
+                            role: emp.role,
+                            status: emp.status,
+                            salary: emp.salary || 0, // Ensure salary is a number
+                            joining_date: emp.joining_date || new Date().toISOString().split('T')[0] // Ensure joining_date is a string
+                          })
                           setShowForm(true)
                         }}
                       >
@@ -514,125 +603,161 @@ export default function EmployeesPage() {
       )}
 
       {/* Add/Edit Employee Dialog */}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-3xl w-full sm:w-[90%] md:w-[80%] lg:w-[60%] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editEmployee ? 'Edit Employee' : 'Add Employee'}</DialogTitle>
-          </DialogHeader>
+     <Dialog open={showForm} onOpenChange={setShowForm}>
+  <DialogContent className="max-w-3xl w-full sm:w-[90%] md:w-[80%] lg:w-[60%] max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle>{editEmployee ? 'Edit Employee' : 'Add Employee'}</DialogTitle>
+    </DialogHeader>
 
-          <div className="grid gap-4 py-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            <div className="w-full">
-              <Label>Name</Label>
-              <Input
-                value={formData.name || ''}
-                onChange={e => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
+    <div className="grid gap-4 py-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+      {/* Name - Required */}
+      <div className="w-full">
+        <Label htmlFor="name">Name *</Label>
+        <Input
+          id="name"
+          value={formData.name || ''}
+          onChange={e => setFormData({ ...formData, name: e.target.value })}
+          required
+        />
+      </div>
 
-            <div className="w-full">
-              <Label>Email</Label>
-              <Input
-                value={formData.email || ''}
-                onChange={e => setFormData({ ...formData, email: e.target.value })}
-              />
-            </div>
+      {/* Email - Required */}
+      <div className="w-full">
+        <Label htmlFor="email">Email *</Label>
+        <Input
+          id="email"
+          type="email"
+          value={formData.email || ''}
+          onChange={e => setFormData({ ...formData, email: e.target.value })}
+          required
+        />
+      </div>
 
-            <div className="w-full">
-              <Label>Phone</Label>
-              <Input
-                type="tel"
-                value={formData.phone || ''}
-                onChange={e => setFormData({ ...formData, phone: e.target.value })}
-              />
-            </div>
+      {/* Phone */}
+      <div className="w-full">
+        <Label htmlFor="phone">Phone</Label>
+        <Input
+          id="phone"
+          type="tel"
+          value={formData.phone || ''}
+          onChange={e => setFormData({ ...formData, phone: e.target.value })}
+        />
+      </div>
 
-            <div className="w-full">
-              <Label>Role</Label>
-              <select
-                value={formData.role || 'employee'}
-                onChange={e => setFormData({ ...formData, role: e.target.value })}
-                className="w-full border dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 rounded-lg p-2"
-              >
-                {filteredRoles.map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
+      {/* Role - Required */}
+      <div className="w-full">
+        <Label htmlFor="role">Role *</Label>
+        <select
+          id="role"
+          value={formData.role || 'employee'}
+          onChange={e => setFormData({ ...formData, role: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          required
+        >
+          {(filteredRoles || ['employee', 'manager', 'hr', 'admin']).map((r: string) => (
+            <option key={r} value={r}>
+              {r.charAt(0).toUpperCase() + r.slice(1)}
+            </option>
+          ))}
+        </select>
+      </div>
 
-            <div className="w-full">
-              <Label>Department</Label>
-              <select
-                value={formData.department || ''}
-                onChange={e => setFormData({ ...formData, department: e.target.value })}
-                className="w-full border dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 rounded-lg p-2"
-              >
-                <option value="">Select Department</option>
-                {departments.map(d => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-            </div>
+      {/* Department */}
+      <div className="w-full">
+        <Label htmlFor="department">Department</Label>
+        <select
+          id="department"
+          value={formData.department || ''}
+          onChange={e => setFormData({ ...formData, department: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        >
+          <option value="">Select Department</option>
+          {(departments || []).map((d: string) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </select>
+      </div>
 
-            <div className="w-full">
-              <Label>Position</Label>
-              <Input
-                value={formData.position || ''}
-                onChange={e => setFormData({ ...formData, position: e.target.value })}
-              />
-            </div>
+      {/* Position */}
+      <div className="w-full">
+        <Label htmlFor="position">Position</Label>
+        <Input
+          id="position"
+          value={formData.position || ''}
+          onChange={e => setFormData({ ...formData, position: e.target.value })}
+        />
+      </div>
 
-            <div className="w-full">
-              <Label>Location</Label>
-              <select
-                value={formData.location || ''}
-                onChange={e => setFormData({ ...formData, location: e.target.value })}
-                className="w-full border dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 rounded-lg p-2"
-              >
-                <option value="">Select Location</option>
-                {locations.map(l => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
-            </div>
+      {/* Location */}
+      <div className="w-full">
+        <Label htmlFor="location">Location</Label>
+        <select
+          id="location"
+          value={formData.location || ''}
+          onChange={e => setFormData({ ...formData, location: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        >
+          <option value="">Select Location</option>
+          {(locations || []).map((l: string) => (
+            <option key={l} value={l}>{l}</option>
+          ))}
+        </select>
+      </div>
 
-            <div className="w-full">
-              <Label>Salary</Label>
-              <Input
-                type="number"
-                value={formData.salary ?? ''}
-                onChange={e => setFormData({ ...formData, salary: Number(e.target.value) })}
-              />
-            </div>
+      {/* Salary - Prevent negative values */}
+      <div className="w-full">
+        <Label htmlFor="salary">Salary</Label>
+        <Input
+          id="salary"
+          type="number"
+          min="0"
+          step="0.01"
+          value={formData.salary ?? ''}
+          onChange={e => setFormData({ ...formData, salary: Number(e.target.value) })}
+        />
+      </div>
 
-            <div className="w-full">
-              <Label>Joining Date</Label>
-              <Input
-                type="date"
-                value={formData.joining_date ?? ''}
-                onChange={e => setFormData({ ...formData, joining_date: e.target.value })}
-              />
-            </div>
+      {/* Joining Date */}
+      <div className="w-full">
+        <Label htmlFor="joining_date">Joining Date</Label>
+        <Input
+          id="joining_date"
+          type="date"
+          value={formData.joining_date ?? ''}
+          onChange={e => setFormData({ ...formData, joining_date: e.target.value })}
+        />
+      </div>
 
-            <div className="w-full">
-              <Label>Status</Label>
-              <select
-                value={formData.status || 'active'}
-                onChange={e => setFormData({ ...formData, status: e.target.value })}
-                className="w-full border dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-200 rounded-lg p-2"
-              >
-                <option value="active">Active</option>
-                <option value="on-leave">On Leave</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
+      {/* Status - Required */}
+      <div className="w-full">
+        <Label htmlFor="status">Status *</Label>
+        <select
+          id="status"
+          value={formData.status || 'active'}
+          onChange={e => setFormData({ ...formData, status: e.target.value })}
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+          required
+        >
+          <option value="active">Active</option>
+          <option value="on-leave">On Leave</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+    </div>
 
-          <DialogFooter className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
-            <Button onClick={handleSave}>{editEmployee ? 'Update' : 'Add'}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+    <DialogFooter className="flex justify-end gap-2">
+      <Button variant="outline" onClick={() => setShowForm(false)}>
+        Cancel
+      </Button>
+      <Button 
+        onClick={handleSave}
+        disabled={!formData.name || !formData.email} // Disable if required fields missing
+      >
+        {editEmployee ? 'Update' : 'Add'}
+      </Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
           
       {/* View Employee Dialog */}
       <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>

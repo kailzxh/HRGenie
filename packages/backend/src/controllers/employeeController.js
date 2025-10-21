@@ -4,7 +4,11 @@ const db = require('../config/db');
 const getEmployees = async (req, res) => {
   try {
     const { department, location, status } = req.query;
-    let query = 'SELECT id, name, email, department, position, location, join_date, status, avatar FROM employees';
+    let query = `SELECT 
+      id, name, email, department, position, location, 
+      joining_date, status, phone, role, manager_id,
+      created_at, updated_at
+    FROM employees`;
     const queryParams = [];
     
     // Build WHERE clause based on filters
@@ -26,6 +30,8 @@ const getEmployees = async (req, res) => {
       query += ' WHERE ' + conditions.join(' AND ');
     }
 
+    query += ' ORDER BY created_at DESC';
+
     const result = await db.query(query, queryParams);
     res.json(result.rows);
   } catch (error) {
@@ -39,12 +45,17 @@ const getEmployee = async (req, res) => {
     const { id } = req.params;
     
     // Users can only view their own profile unless they are HR or Admin
-    if (req.user.role !== 'admin' && req.user.role !== 'hr' && req.user.id !== parseInt(id)) {
+    if (req.user.role !== 'admin' && req.user.role !== 'hr' && req.user.id !== id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
     const result = await db.query(
-      'SELECT id, name, email, department, position, location, join_date, status, avatar FROM employees WHERE id = $1',
+      `SELECT 
+        id, name, email, department, position, location, 
+        joining_date, status, phone, role, manager_id,
+        bank_account_number, bank_name, ifsc_code, pan_number, uan_number,
+        payroll_active, created_at, updated_at
+      FROM employees WHERE id = $1`,
       [id]
     );
 
@@ -72,14 +83,26 @@ const createEmployee = async (req, res) => {
       department,
       position,
       location,
-      status = 'active'
+      phone,
+      role = 'employee',
+      status = 'active',
+      salary,
+      manager_id,
+      joining_date
     } = req.body;
+
+    // Check if user has permission (admin or hr)
+    if (req.user.role !== 'admin' && req.user.role !== 'hr') {
+      return res.status(403).json({ error: 'Access denied. Only admin and HR can create employees.' });
+    }
 
     const result = await db.query(
       `INSERT INTO employees (
-        name, email, department, position, location, status, join_date
-      ) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE) RETURNING *`,
-      [name, email, department, position, location, status]
+        name, email, department, position, location, phone,
+        role, status, salary, manager_id, joining_date
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      RETURNING id, name, email, department, position, location, phone, role, status, salary, manager_id, joining_date`,
+      [name, email, department, position, location, phone, role, status, salary, manager_id, joining_date || new Date().toISOString().split('T')[0]]
     );
 
     res.status(201).json(result.rows[0]);
@@ -88,7 +111,7 @@ const createEmployee = async (req, res) => {
     if (error.code === '23505') { // unique_violation
       return res.status(400).json({ error: 'Email already exists' });
     }
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error: ' + error.message });
   }
 };
 
@@ -106,11 +129,20 @@ const updateEmployee = async (req, res) => {
       department,
       position,
       location,
-      status
+      phone,
+      status,
+      salary,
+      manager_id,
+      bank_account_number,
+      bank_name,
+      ifsc_code,
+      pan_number,
+      uan_number,
+      payroll_active
     } = req.body;
 
     // Users can only update their own profile unless they are HR or Admin
-    if (req.user.role !== 'admin' && req.user.role !== 'hr' && req.user.id !== parseInt(id)) {
+    if (req.user.role !== 'admin' && req.user.role !== 'hr' && req.user.id !== id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -119,35 +151,84 @@ const updateEmployee = async (req, res) => {
     const values = [];
     let paramCount = 1;
 
-    if (name) {
+    if (name !== undefined) {
       updates.push(`name = $${paramCount}`);
       values.push(name);
       paramCount++;
     }
-    if (email) {
+    if (email !== undefined) {
       updates.push(`email = $${paramCount}`);
       values.push(email);
       paramCount++;
     }
-    if (department) {
+    if (department !== undefined) {
       updates.push(`department = $${paramCount}`);
       values.push(department);
       paramCount++;
     }
-    if (position) {
+    if (position !== undefined) {
       updates.push(`position = $${paramCount}`);
       values.push(position);
       paramCount++;
     }
-    if (location) {
+    if (location !== undefined) {
       updates.push(`location = $${paramCount}`);
       values.push(location);
       paramCount++;
     }
-    if (status) {
+    if (phone !== undefined) {
+      updates.push(`phone = $${paramCount}`);
+      values.push(phone);
+      paramCount++;
+    }
+    if (status !== undefined) {
       updates.push(`status = $${paramCount}`);
       values.push(status);
       paramCount++;
+    }
+    if (salary !== undefined) {
+      updates.push(`salary = $${paramCount}`);
+      values.push(salary);
+      paramCount++;
+    }
+    if (manager_id !== undefined) {
+      updates.push(`manager_id = $${paramCount}`);
+      values.push(manager_id);
+      paramCount++;
+    }
+    if (bank_account_number !== undefined) {
+      updates.push(`bank_account_number = $${paramCount}`);
+      values.push(bank_account_number);
+      paramCount++;
+    }
+    if (bank_name !== undefined) {
+      updates.push(`bank_name = $${paramCount}`);
+      values.push(bank_name);
+      paramCount++;
+    }
+    if (ifsc_code !== undefined) {
+      updates.push(`ifsc_code = $${paramCount}`);
+      values.push(ifsc_code);
+      paramCount++;
+    }
+    if (pan_number !== undefined) {
+      updates.push(`pan_number = $${paramCount}`);
+      values.push(pan_number);
+      paramCount++;
+    }
+    if (uan_number !== undefined) {
+      updates.push(`uan_number = $${paramCount}`);
+      values.push(uan_number);
+      paramCount++;
+    }
+    if (payroll_active !== undefined) {
+      updates.push(`payroll_active = $${paramCount}`);
+      values.push(payroll_active);
+      paramCount++;
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
     }
 
     values.push(id);
@@ -156,7 +237,7 @@ const updateEmployee = async (req, res) => {
       SET ${updates.join(', ')}, 
           updated_at = CURRENT_TIMESTAMP 
       WHERE id = $${paramCount} 
-      RETURNING *
+      RETURNING id, name, email, department, position, location, phone, role, status, salary, manager_id, joining_date, updated_at
     `;
 
     const result = await db.query(query, values);
@@ -174,12 +255,17 @@ const updateEmployee = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
 const getEmployeeByEmail = async (req, res) => {
   try {
     const { email } = req.params;
     
     const result = await db.query(
-      'SELECT * FROM employees WHERE email = $1',
+      `SELECT 
+        id, name, email, department, position, location, 
+        joining_date, status, phone, role, manager_id,
+        created_at, updated_at
+      FROM employees WHERE email = $1`,
       [email]
     );
 
@@ -193,12 +279,18 @@ const getEmployeeByEmail = async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 };
+
 const deleteEmployee = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Only admin and HR can delete employees
+    if (req.user.role !== 'admin' && req.user.role !== 'hr') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
     const result = await db.query(
-      'DELETE FROM employees WHERE id = $1 RETURNING *',
+      'DELETE FROM employees WHERE id = $1 RETURNING id, name, email',
       [id]
     );
 
@@ -206,7 +298,7 @@ const deleteEmployee = async (req, res) => {
       return res.status(404).json({ error: 'Employee not found' });
     }
 
-    res.json({ message: 'Employee deleted successfully' });
+    res.json({ message: 'Employee deleted successfully', deletedEmployee: result.rows[0] });
   } catch (error) {
     console.error('Error deleting employee:', error);
     res.status(500).json({ error: 'Server error' });
