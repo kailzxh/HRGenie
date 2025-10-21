@@ -21,11 +21,12 @@ export function Navbar() {
     navigate('/auth/login');
   };
 
-  const initials = profile?.full_name
-    .split(' ')
-    .map((n) => n[0])
-    .join('')
-    .toUpperCase() || '?';
+  const initials = profile?.full_name ?
+    profile.full_name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase() : '?';
 
   return (
     <nav className="border-b bg-white shadow-sm">

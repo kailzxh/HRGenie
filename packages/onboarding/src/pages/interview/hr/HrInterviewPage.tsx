@@ -68,10 +68,9 @@ export default function HRInterviewPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const webcamRef = useRef<Webcam | null>(null);
   const faceDetectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // ✅ FIX 1: Create a ref to hold the current interview state to prevent race conditions
   const interviewStateRef = useRef<InterviewState>(interviewState);
 
-  // ✅ FIX 1: Keep the ref synchronized with the state
+  // ✅ Keep the ref synchronized with the state
   useEffect(() => {
     interviewStateRef.current = interviewState;
   }, [interviewState]);
@@ -140,7 +139,6 @@ export default function HRInterviewPage() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewState]);
 
   // --- Proctoring Logic ---
@@ -199,7 +197,7 @@ export default function HRInterviewPage() {
         };
     }
   }, [interviewState, modelsLoaded, isCameraReady]);
-  
+
   // --- Helper functions and Callbacks ---
   const formatTime = (sec: number) => {
     const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -222,7 +220,7 @@ export default function HRInterviewPage() {
 
   const stopRecognition = useCallback(() => {
     if (recognitionRef.current) {
-      recognitionRef.current.onresult = null; // Detach event listeners
+      recognitionRef.current.onresult = null;
       recognitionRef.current.onend = null;
       recognitionRef.current.onerror = null;
       recognitionRef.current.stop();
@@ -231,23 +229,35 @@ export default function HRInterviewPage() {
     if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
     if (noSpeechFallbackTimerRef.current) clearTimeout(noSpeechFallbackTimerRef.current);
   }, []);
-  
-const finishInterview = useCallback(async () => {
-    if (interviewStateRef.current === 'finished') return;
+
+  const finishInterview = useCallback(async () => {
+    if (interviewStateRef.current === 'finished') {
+      console.log('🛑 Interview already finished, skipping');
+      return;
+    }
     
+    console.log('🏁 Finishing interview...');
     setInterviewState('finished');
+    interviewStateRef.current = 'finished';
+    
     stopRecognition();
     if (timerRef.current) clearInterval(timerRef.current);
-    if (document.fullscreenElement) document.exitFullscreen();
-    const apiUrl = import.meta.env.VITE_API_URL;
+    
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch (err) {
+        console.warn('Could not exit fullscreen:', err);
+      }
+    }
 
     const finalMessage = "Thank you. The interview is now complete. We are now analyzing your responses...";
     setMessages((prev) => [...prev, { role: 'assistant', content: finalMessage, timestamp: new Date().toISOString() }]);
+    
     await speakText(finalMessage);
     toast({ title: "Interview Complete", description: "Analyzing your responses..." });
 
     try {
-      // 1. Generate the final analysis by calling the backend
       const analysisResponse = await fetch(`${apiUrl}/api/generate-response`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -266,22 +276,18 @@ const finishInterview = useCallback(async () => {
       
       const result = await analysisResponse.json();
       
-      // ✅ FIX: Default data now uses keys that match your database schema
       let analysisData = { hr_interview_summary: 'AI analysis could not be generated.', hr_interview_score: 0 };
       
       try {
-        // ✅ FIX: Clean the response text to remove Markdown fences (```) before parsing
         const cleanedText = result.responseText.replace(/```json/g, '').replace(/```/g, '');
         analysisData = JSON.parse(cleanedText);
       } catch (e) { 
         console.error("Failed to parse AI analysis JSON:", result.responseText, e); 
       }
 
-      // 3. Combine all events for the final transcript log
       const allEvents: InterviewEvent[] = [...messages, ...proctoringEvents];
       allEvents.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       
-      // ✅ FIX: Use the corrected keys (hr_interview_summary, hr_interview_score) to update Supabase
       const { error } = await supabase
         .from('applications')
         .update({
@@ -301,22 +307,31 @@ const finishInterview = useCallback(async () => {
       console.error('Error during finishInterview process:', error);
       toast({ title: 'Error', description: 'Could not save the final analysis.', variant: 'destructive' });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, application, messages, proctoringEvents]);
+  }, [id, application, messages, proctoringEvents, stopRecognition, speakText, toast, navigate]);
 
+  // ✅ Declare askNextQuestion first
   const askNextQuestion = useCallback(async (currentTranscript: Message[] = messages) => {
-    // ✅ FIX 1: Add guard clause using the ref to prevent "ghost" questions
     if (interviewStateRef.current === 'finished') {
-        return;
+      console.log('🛑 Interview already finished, stopping question generation');
+      return;
     }
     
     stopRecognition();
     
-    if (questionCount >= 5 || timeLeft <= 1) {
+    if (questionCount >= 5) {
+      console.log('✅ Reached question limit (5), finishing interview');
       finishInterview();
       return;
     }
+    
+    if (timeLeft <= 1) {
+      console.log('⏰ Time limit reached, finishing interview');
+      finishInterview();
+      return;
+    }
+    
     setInterviewState('processing');
+    console.log(`🔄 Asking question ${questionCount + 1} of 5`);
 
     try {
       const res = await fetch(`${apiUrl}/api/generate-response`, {
@@ -325,9 +340,11 @@ const finishInterview = useCallback(async () => {
         body: JSON.stringify({
           jobTitle: application?.job?.title,
           jobDescription: application?.job?.description,
-          previousTranscript: currentTranscript
+          previousTranscript: currentTranscript,
+          isFinalAnalysis: false
         })
       });
+      
       if (!res.ok) throw new Error('Failed to fetch from API');
       const data = await res.json();
       const question = data?.responseText;
@@ -338,13 +355,26 @@ const finishInterview = useCallback(async () => {
       setQuestionCount((q) => q + 1);
       
       await speakText(question);
-      startRecognition();
+      
+      if (questionCount + 1 >= 5) {
+        console.log('✅ Just asked the 5th question, finishing interview next');
+        finishInterview();
+      } else {
+        setTimeout(() => {
+          if (interviewStateRef.current !== 'finished' && questionCount + 1 < 5) {
+            startRecognition();
+          }
+        }, 100);
+      }
+      
     } catch (err: any) {
+      console.error('❌ Error asking next question:', err);
       toast({ title: 'AI Error', description: err.message, variant: 'destructive' });
-      setInterviewState('idle');
+      finishInterview();
     }
   }, [application, questionCount, timeLeft, messages, speakText, toast, finishInterview, stopRecognition]);
-  
+
+  // ✅ Now declare startRecognition after askNextQuestion
   const startRecognition = useCallback(() => {
     if (!SpeechRecognition) return;
     stopRecognition();
@@ -418,7 +448,9 @@ const finishInterview = useCallback(async () => {
 
   if (authLoading || loading) {
     return (
-      <div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div></div>
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900"></div>
+      </div>
     );
   }
   
@@ -489,8 +521,16 @@ const finishInterview = useCallback(async () => {
               <p className="text-sm text-slate-600">Please answer clearly into your microphone.</p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="text-right"><div className="text-xs text-slate-500">Time left</div><div className={`font-mono font-semibold text-lg ${timeLeft <= 60 ? 'text-red-600 animate-pulse' : ''}`}>{formatTime(timeLeft)}</div></div>
-              <div className="text-right"><div className="text-xs text-slate-500">Questions</div><div className="font-semibold">{questionCount} / 5</div></div>
+              <div className="text-right">
+                <div className="text-xs text-slate-500">Time left</div>
+                <div className={`font-mono font-semibold text-lg ${timeLeft <= 60 ? 'text-red-600 animate-pulse' : ''}`}>
+                  {formatTime(timeLeft)}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs text-slate-500">Questions</div>
+                <div className="font-semibold">{questionCount} / 5</div>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">

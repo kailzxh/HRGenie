@@ -30,7 +30,7 @@
     "pdf-parse": "^2.3.0",
     "pdf-to-text": "^0.0.7",
     "pdf2json": "^4.0.0",
-    "pdfjs-dist": "^5.4.296"
+    "pdfjs-dist": "^3.11.174"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",

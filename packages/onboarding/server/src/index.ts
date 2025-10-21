@@ -1,6 +1,3 @@
-// ================== index.ts ==================
-
-// ✅ Polyfill DOMMatrix globally for pdfjs-dist in Node.js
 class DOMMatrix {
   constructor() {}
 }
@@ -12,7 +9,10 @@ import dotenv from "dotenv";
 import axios from "axios";
 import { Octokit } from "@octokit/rest";
 import * as cheerio from "cheerio";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf"; // ✅ legacy build
+
+// ✅ Correct import for pdfjs-dist (use the main import)
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.js";
+// ✅ Use legacy build
 
 dotenv.config();
 const base_url = process.env.BASE_URL;
@@ -292,7 +292,7 @@ app.post("/api/finish-technical-interview", async (req: Request, res: Response) 
   // --- STEP 1: Flatten answers from transcript ---
   const answers: Answer[] = transcript.flatMap((t: any) => t.submission?.answers || []);
   const questions: Question[] = transcript.flatMap((t: any) => t.assessment?.questions || []);
-
+ 
   // --- STEP 2: Separate aptitude and coding answers ---
   const aptitudeAnswers = answers.filter(a => typeof a.answer === 'string');
   const codingSubmissions = answers.filter(a => typeof a.code === 'string');
@@ -300,7 +300,7 @@ app.post("/api/finish-technical-interview", async (req: Request, res: Response) 
   const correctAptitudeCount = aptitudeAnswers.filter(a => {
     const question = questions[a.questionIndex];
     return question && question.correctAnswer && a.answer?.trim() === question.correctAnswer.trim();
-  }).length;
+  }).length; 
 
   const totalAptitude = questions.filter(q => q.type === 'aptitude').length || 10;
 
@@ -324,8 +324,8 @@ app.post("/api/finish-technical-interview", async (req: Request, res: Response) 
   if (technicalScore < 0) technicalScore = 0;
 
   // --- STEP 5: Auto-zero check ---
-  const hasAnswers = aptitudeAnswers.some(a => a.answer?.trim().length > 0);
-  const hasCode = codingSubmissions.some(a => a.code?.trim().length > 0);
+ const hasAnswers = aptitudeAnswers.some(a => a.answer && a.answer.trim().length > 0);
+const hasCode = codingSubmissions.some(a => a.code && a.code.trim().length > 0);
 
   if (!hasAnswers && !hasCode) {
     console.log("🚨 No valid answers or code submissions — assigning score 0");

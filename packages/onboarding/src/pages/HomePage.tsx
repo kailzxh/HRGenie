@@ -1,3 +1,4 @@
+// pages/HomePage.tsx - FIXED
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -5,8 +6,23 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Briefcase, Brain, Code2, Users, CheckCircle2, ArrowRight } from 'lucide-react';
 
-export default function LandingPage() {
-  const { user } = useAuth();
+export default function HomePage() {
+  const { user, loading, initialized } = useAuth();
+
+  console.log('🏠 HomePage auth state:', { user: user?.email, loading, initialized });
+
+  // Show loading until auth is ready
+  if (!initialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-slate-900 mx-auto mb-4"></div>
+          <p>Loading HireAI...</p>
+          <p className="text-sm text-slate-500 mt-2">Initializing: {initialized ? 'Yes' : 'No'}</p>
+        </div>
+      </div>
+    );
+  }
 
   const features = [
     {
@@ -85,7 +101,9 @@ export default function LandingPage() {
                 </Link>
               </Button>
               <Button size="lg" variant="outline" asChild>
-                <Link to="/auth/login">Learn More</Link>
+                <Link to={user ? '/dashboard' : '/auth/login'}>
+                  {user ? 'Go to Dashboard' : 'Learn More'}
+                </Link>
               </Button>
             </div>
           </div>
@@ -131,8 +149,8 @@ export default function LandingPage() {
                   Join thousands of candidates using AI-powered interviews to land their dream jobs.
                 </p>
                 <Button size="lg" variant="secondary" asChild>
-                  <Link to={user ? '/jobs' : '/auth/signup'}>
-                    Get Started Today
+                  <Link to={user ? '/dashboard' : '/auth/signup'}>
+                    {user ? 'Go to Dashboard' : 'Get Started Today'}
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Link>
                 </Button>

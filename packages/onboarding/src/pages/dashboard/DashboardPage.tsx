@@ -1,3 +1,4 @@
+// pages/DashboardPage.tsx
 'use client';
 
 import React, { useEffect, useState, type JSX } from 'react';
@@ -12,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Briefcase, Calendar, ExternalLink, FileText, Github, Linkedin, Mail, MessageSquare, Phone } from 'lucide-react';
+import { Briefcase, Calendar, ExternalLink, FileText, Github, Linkedin, Mail, MessageSquare, Phone, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const statusColors: Record<string, string> = {
@@ -21,12 +22,11 @@ const statusColors: Record<string, string> = {
   github_analysis: 'bg-orange-500',
   technical_interview: 'bg-purple-500',
   hr_interview: 'bg-pink-500',
-  hr_screening: 'bg-teal-500',        // ✅ new
-  profile_analyzed: 'bg-indigo-500',  // ✅ new
+  hr_screening: 'bg-teal-500',
+  profile_analyzed: 'bg-indigo-500',
   offer: 'bg-green-500',
   rejected: 'bg-red-500',
-  technical_screening: 'bg-cyan-500', // ✅ new
-
+  technical_screening: 'bg-cyan-500',
 };
 
 const statusLabels: Record<string, string> = {
@@ -35,17 +35,16 @@ const statusLabels: Record<string, string> = {
   github_analysis: 'GitHub Analysis',
   technical_interview: 'Technical Interview',
   hr_interview: 'HR Interview',
-  hr_screening: 'HR Screening',       // ✅ new
-  profile_analyzed: 'Profile Analyzed', // ✅ new
+  hr_screening: 'HR Screening',
+  profile_analyzed: 'Profile Analyzed',
   offer: 'Offer',
   rejected: 'Rejected',
-  technical_screening: 'Technical Screening', // ✅ new
+  technical_screening: 'Technical Screening',
 };
-
 
 export default function DashboardPage(): JSX.Element {
   const navigate = useNavigate();
-  const { user, profile, loading: authLoading, refreshProfile } = useAuth();
+  const { user, profile, loading: authLoading, initialized } = useAuth();
   const { toast } = useToast();
 
   const [applications, setApplications] = useState<Application[]>([]);
@@ -58,11 +57,13 @@ export default function DashboardPage(): JSX.Element {
     github_url: '',
   });
 
+  // Enhanced authentication check
   useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth/login');
+    if (initialized && !user) {
+      console.log('🚫 No user found, redirecting to login');
+      navigate('/auth/login?redirect=/onboarding/dashboard', { replace: true });
     }
-  }, [user, authLoading, navigate]);
+  }, [user, initialized, navigate]);
 
   useEffect(() => {
     if (profile) {
@@ -76,13 +77,14 @@ export default function DashboardPage(): JSX.Element {
   }, [profile]);
 
   useEffect(() => {
-    if (user) {
+    if (user && initialized) {
       fetchApplications();
     }
-  }, [user]);
+  }, [user, initialized]);
 
   const fetchApplications = async (): Promise<void> => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from('applications')
         .select(`*, job:jobs(*)`)
@@ -99,9 +101,14 @@ export default function DashboardPage(): JSX.Element {
         return;
       }
 
-      if (data) setApplications(data as Application[]);
+      setApplications(data as Application[] || []);
     } catch (err) {
       console.error('Unexpected error fetching applications:', err);
+      toast({
+        title: 'Error',
+        description: 'An unexpected error occurred.',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -122,7 +129,6 @@ export default function DashboardPage(): JSX.Element {
       });
 
       setEditMode(false);
-      refreshProfile();
     } catch (error: any) {
       console.error('Profile update error:', error);
       toast({
@@ -133,14 +139,30 @@ export default function DashboardPage(): JSX.Element {
     }
   };
 
-  if (authLoading || loading) {
+  // Show loading state while checking authentication or loading data
+  if (authLoading || !initialized) {
     return (
       <div className="min-h-screen bg-slate-50">
         <Navbar />
         <div className="flex items-center justify-center h-screen text-slate-600">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-slate-900 mx-auto"></div>
-            <p className="mt-3">Loading dashboard...</p>
+            <Loader2 className="animate-spin h-10 w-10 mx-auto mb-4" />
+            <p>Loading dashboard...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render content if no user (will redirect)
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navbar />
+        <div className="flex items-center justify-center h-screen text-slate-600">
+          <div className="text-center">
+            <Loader2 className="animate-spin h-10 w-10 mx-auto mb-4" />
+            <p>Redirecting to login...</p>
           </div>
         </div>
       </div>
@@ -162,9 +184,15 @@ export default function DashboardPage(): JSX.Element {
             <TabsTrigger value="profile">Profile</TabsTrigger>
           </TabsList>
 
-          {/* -------------------- Applications Tab -------------------- */}
           <TabsContent value="applications" className="space-y-6">
-            {applications.length === 0 ? (
+            {loading ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin text-slate-400 mb-4" />
+                  <p className="text-slate-600">Loading applications...</p>
+                </CardContent>
+              </Card>
+            ) : applications.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center">
                   <Briefcase className="mx-auto h-12 w-12 text-slate-400 mb-4" />
@@ -270,7 +298,6 @@ export default function DashboardPage(): JSX.Element {
             )}
           </TabsContent>
 
-          {/* -------------------- Profile Tab -------------------- */}
           <TabsContent value="profile">
             <Card>
               <CardHeader>
@@ -305,7 +332,7 @@ export default function DashboardPage(): JSX.Element {
                         }
                       />
                     ) : (
-                      <p className="text-sm text-slate-900">{profile?.full_name}</p>
+                      <p className="text-sm text-slate-900">{profile?.full_name || 'Not set'}</p>
                     )}
                   </div>
 
