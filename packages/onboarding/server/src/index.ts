@@ -33,7 +33,7 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "https://0wqvpl8p-5173.inc1.devtunnels.ms",
-  "https://your-frontend-app.vercel.app" // Add your actual frontend Vercel URL
+  "https://hr-genie-z5zb.vercel.app" // Add your actual frontend Vercel URL
 ];
 
 app.use(cors({
