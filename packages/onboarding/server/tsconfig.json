@@ -1,17 +1,16 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "es2018",
     "module": "commonjs",
-    "moduleResolution": "node",
-    "rootDir": "./src",
     "outDir": "./dist",
-    "sourceMap": true,
-    "resolveJsonModule": true,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
+    "rootDir": "./src",
     "strict": true,
-    "skipLibCheck": true
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+    "types": ["node", "express"]
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*", "src/types/*.d.ts"],
+  "exclude": ["node_modules"]
 }
