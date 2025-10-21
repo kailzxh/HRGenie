@@ -1,6 +1,7 @@
 // frontend/src/app/api/recruitment/jobs/route.ts
 import { NextResponse } from 'next/server';
-
+// In your page.js file
+export const dynamic = 'force-dynamic';
 const BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}/recruitment`;
 
 // GET /api/recruitment/jobs

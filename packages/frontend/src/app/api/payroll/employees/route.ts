@@ -1,7 +1,8 @@
 // src/app/api/payroll/employees/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseServer } from '@/config/supabaseServer';
-
+// In your page.js file
+export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
