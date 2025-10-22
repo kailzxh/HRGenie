@@ -81,7 +81,7 @@ const [dropdownOpen, setDropdownOpen] = useState<Record<string, boolean>>({});
   // Map pipeline columns to status values in DB
   const pipelineBuckets: Record<string, string[]> = {
     Applied: ['submitted', 'profile_analyzed'],
-    Screening: ['resume_screening', 'github_analysis', 'technical_screening'],
+    Screening: ['resume_screening', 'github_analysis', 'technical_screening', 'hr_screening'],
     Interview: ['technical_interview', 'hr_interview'],
     Hired: ['offer']
   }
