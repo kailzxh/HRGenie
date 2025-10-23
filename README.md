@@ -346,11 +346,3 @@ Tailwind CSS — Utility-first styling
 Open Source Community ❤️
 
 HRGenie – Transforming HR management with AI-powered insights and modern technology.
-
-
----
-
-Would you like me to:
-- ✅ **Create and give you a downloadable `README.md` file** for this version,  
-or  
-- 🧠 **Enhance it further** (e.g., add screenshots, architecture diagram, badges for CI/CD, etc.) before exporting?
